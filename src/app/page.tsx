@@ -102,7 +102,7 @@ const GeneratedMessageCard = ({ message, salesTag, index }: { message: string; s
         </Button>
       </CardHeader>
       <CardContent>
-        <p className="whitespace-normal break-words text-foreground/90 leading-relaxed pt-2">
+        <p className="whitespace-pre-wrap break-words text-foreground/90 leading-relaxed pt-2">
           {message}
         </p>
       </CardContent>
@@ -129,75 +129,54 @@ export default function Home() {
 
   const { data: userProfile, isLoading: isProfileLoading } = useDoc(userProfileRef);
 
-  const manageUserProfile = async () => {
-    if (!user || !firestore) return;
-
-    if (!isProfileLoading && !userProfile) {
-      if (!user.email) return;
-
-      const docRef = doc(firestore, 'users', user.uid);
-      const docSnap = await getDoc(docRef);
-
-      if (!docSnap.exists()) {
-        try {
-          await setDoc(docRef, {
-            userId: user.uid,
-            email: user.email,
+  const manageUserProfile = async (currentUser: import('firebase/auth').User) => {
+    if (!firestore) return;
+  
+    const docRef = doc(firestore, 'users', currentUser.uid);
+    const docSnap = await getDoc(docRef);
+  
+    if (!docSnap.exists()) {
+      if (!currentUser.email) return;
+      try {
+        await setDoc(docRef, {
+          userId: currentUser.uid,
+          email: currentUser.email,
+          plan: 'free',
+          messageCount: 0,
+        });
+      } catch (error) {
+        const contextualError = new FirestorePermissionError({
+          operation: 'create',
+          path: docRef.path,
+          requestResourceData: {
+            userId: currentUser.uid,
+            email: currentUser.email,
             plan: 'free',
             messageCount: 0,
-          });
-        } catch (error) {
-          const contextualError = new FirestorePermissionError({
-            operation: 'create',
-            path: docRef.path,
-            requestResourceData: {
-              userId: user.uid,
-              email: user.email,
-              plan: 'free',
-              messageCount: 0,
-            }
-          });
-          errorEmitter.emit('permission-error', contextualError);
-        }
+          }
+        });
+        errorEmitter.emit('permission-error', contextualError);
       }
     }
   };
 
   useEffect(() => {
-    manageUserProfile();
-  }, [user, firestore, userProfile, isProfileLoading]);
-
-  const handleSignIn = async () => {
-    const provider = new GoogleAuthProvider();
-    try {
-      await signInWithPopup(auth, provider);
-      setIsLoginModalOpen(false); // Fecha o modal no sucesso
-    } catch (error) {
-      console.error("Error signing in with Google", error);
-      toast({
-        variant: 'destructive',
-        title: 'Erro de Login',
-        description: 'Não foi possível entrar com o Google. Tente novamente.',
-      });
+    if (user && !userProfile && !isProfileLoading) {
+        manageUserProfile(user);
     }
-  };
-
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      salesTag: 'Saudação',
-      nicheDetails: '',
-    },
-  });
+  }, [user, firestore, userProfile, isProfileLoading]);
 
   const runGeneration = async (values: z.infer<typeof formSchema>) => {
     if (!user || !userProfileRef) {
-      // Este caso não deveria acontecer se a lógica estiver correta
-      toast({ variant: 'destructive', title: 'Erro', description: 'Usuário não encontrado.' });
+      toast({ variant: 'destructive', title: 'Erro', description: 'Usuário não encontrado. Por favor, faça login novamente.' });
       return;
     }
 
-    if (userProfile?.plan === 'free' && userProfile.messageCount >= FREE_PLAN_LIMIT) {
+    // Refetch latest profile data before checking limit
+    const latestProfileSnap = await getDoc(userProfileRef);
+    const latestProfile = latestProfileSnap.data();
+
+    if (latestProfile?.plan === 'free' && latestProfile.messageCount >= FREE_PLAN_LIMIT) {
       toast({
         variant: 'destructive',
         title: 'Limite Atingido',
@@ -249,18 +228,43 @@ export default function Home() {
     });
   };
 
-  useEffect(() => {
-    // Se o usuário fez login e havia uma ação pendente, executa a ação.
-    if (user && formValuesRef.current && isLoginModalOpen === false) {
-      runGeneration(formValuesRef.current);
-      formValuesRef.current = null; // Limpa a ação pendente
-    }
-  }, [user, isLoginModalOpen]);
+  const handleSignIn = async () => {
+    const provider = new GoogleAuthProvider();
+    try {
+      const result = await signInWithPopup(auth, provider);
+      const currentUser = result.user;
+      
+      // Ensure profile exists after sign in
+      await manageUserProfile(currentUser);
 
+      setIsLoginModalOpen(false);
+
+      // If there was a pending action, run it now
+      if (formValuesRef.current) {
+        runGeneration(formValuesRef.current);
+        formValuesRef.current = null; // Clear the pending action
+      }
+    } catch (error) {
+      console.error("Error signing in with Google", error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro de Login',
+        description: 'Não foi possível entrar com o Google. Tente novamente.',
+      });
+    }
+  };
+
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      salesTag: 'Saudação',
+      nicheDetails: '',
+    },
+  });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if (!user) {
-      formValuesRef.current = values; // Guarda os valores do formulário
+      formValuesRef.current = values; // Save form values
       setIsLoginModalOpen(true);
       return;
     }
