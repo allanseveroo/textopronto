@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useState, useTransition, useEffect, useCallback } from 'react';
+import { useState, useTransition, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -110,14 +111,16 @@ export default function Home() {
   const [generatedMessages, setGeneratedMessages] = useState<GeneratedMessage[]>([]);
   const [profile, setProfile] = useState<Profile>(null);
   
-  const auth = useAuth();
-  const { user, isUserLoading } = useUser();
+  const auth = useAuth(); // Auth instance from Firebase
+  const { user, isUserLoading } = useUser(); // User state from Firebase
   const { toast } = useToast();
 
   useEffect(() => {
+    // This effect runs when the Firebase user state changes.
     if (user && !isUserLoading) {
+      // If there is a Firebase user, manage their profile in Supabase.
       const manageUserProfile = async () => {
-        // 1. Check if user profile exists in Supabase
+        // 1. Check if user profile exists in Supabase using the Firebase user's UID.
         let { data: userProfile, error: fetchError } = await supabase
           .from('profiles')
           .select('*')
@@ -130,7 +133,7 @@ export default function Home() {
           return;
         }
 
-        // 2. If profile doesn't exist, create it
+        // 2. If profile doesn't exist, create it in Supabase.
         if (!userProfile) {
           const { data: newUserProfile, error: insertError } = await supabase
             .from('profiles')
@@ -153,6 +156,7 @@ export default function Home() {
 
       manageUserProfile();
     } else if (!user && !isUserLoading) {
+        // If there is no Firebase user, there is no profile.
         setProfile(null);
     }
   }, [user, isUserLoading, toast]);
@@ -161,6 +165,7 @@ export default function Home() {
   const handleSignIn = async () => {
     const provider = new GoogleAuthProvider();
     try {
+      // Use Firebase to sign in
       await signInWithPopup(auth, provider);
     } catch (error) {
       console.error("Error signing in with Google", error);
@@ -174,8 +179,9 @@ export default function Home() {
 
   const handleSignOut = async () => {
     try {
+      // Use Firebase to sign out
       await signOut(auth);
-      setProfile(null);
+      setProfile(null); // Clear the local profile state
     } catch (error) {
       console.error("Error signing out", error);
       toast({
@@ -209,7 +215,6 @@ export default function Home() {
         title: 'Limite Atingido',
         description: 'Você atingiu o limite de 5 mensagens do plano gratuito. Faça upgrade para continuar!',
       });
-      // Here you would trigger an upgrade modal
       return;
     }
 
