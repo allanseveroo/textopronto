@@ -167,7 +167,7 @@ export default function Home() {
           </Form>
 
           {(isGenerating || generatedMessage) && (
-            <Card className="mt-8 text-left max-w-xl mx-auto transition-all duration-500 animate-in fade-in-0 zoom-in-95">
+            <Card className="mt-12 text-left max-w-xl mx-auto transition-all duration-500 animate-in fade-in-0 zoom-in-95">
               <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
                 <CardTitle className="font-bold text-lg">Sua Mensagem</CardTitle>
                 {!isGenerating && generatedMessage && (
