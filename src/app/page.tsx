@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -32,6 +32,8 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { createClient } from "@/lib/supabase/client";
+import type { User } from "@supabase/supabase-js";
 
 const formSchema = z.object({
   salesTag: z.string().default('Saudação'),
@@ -99,9 +101,50 @@ const GeneratedMessageCard = ({ message, salesTag, index }: { message: string; s
 export default function Home() {
   const [isGenerating, startTransition] = useTransition();
   const [generatedMessages, setGeneratedMessages] = useState<GeneratedMessage[]>([]);
+  const [user, setUser] = useState<User | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
 
   const { toast } = useToast();
+  const supabase = createClient();
 
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+      setIsAuthLoading(false);
+    };
+
+    getUser();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setUser(session?.user ?? null);
+        setIsAuthLoading(false);
+      }
+    );
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, [supabase.auth]);
+
+  const handleSignIn = async () => {
+    setIsAuthLoading(true);
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin,
+      },
+    });
+  };
+
+  const handleSignOut = async () => {
+    setIsAuthLoading(true);
+    await supabase.auth.signOut();
+    setUser(null);
+    setIsAuthLoading(false);
+  };
+  
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -144,11 +187,36 @@ export default function Home() {
     });
   }
 
+  const renderAuthSection = () => {
+    if (isAuthLoading) {
+      return <Loader2 className="h-6 w-6 animate-spin" />;
+    }
+
+    if (user) {
+      return (
+        <div className="flex items-center gap-4">
+          <span className="text-sm text-foreground/80">Olá, {user.email}</span>
+          <Button variant="outline" size="sm" onClick={handleSignOut}>
+            Sair
+          </Button>
+        </div>
+      );
+    }
+
+    return (
+      <Button onClick={handleSignIn} disabled={isAuthLoading}>
+        {isAuthLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+        Entrar com Google
+      </Button>
+    );
+  };
+
   return (
     <div className="flex flex-col min-h-screen font-sans bg-white">
        <header className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
           <h1 className="text-2xl font-bold text-foreground">TextoPronto</h1>
+          {renderAuthSection()}
         </div>
       </header>
       <main className="flex-1 flex flex-col items-center px-4 pt-8">
