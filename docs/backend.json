@@ -1,123 +1,121 @@
-
 {
   "entities": {
-    "User": {
+    "SalesTag": {
       "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "User",
+      "title": "SalesTag",
       "type": "object",
-      "description": "Represents a user in the system.",
+      "description": "Represents a predefined sales tag used for generating sales messages.",
       "properties": {
-        "uid": {
+        "id": {
           "type": "string",
-          "description": "Unique identifier for the user, from Firebase Auth."
+          "description": "Unique identifier for the SalesTag entity."
         },
-        "email": {
+        "name": {
           "type": "string",
-          "format": "email",
-          "description": "The user's email address."
+          "description": "The name of the sales tag (e.g., 'Greeting', 'Objection')."
         },
-        "displayName": {
+        "description": {
           "type": "string",
-          "description": "The user's display name."
+          "description": "A description of the sales tag, explaining its purpose."
         },
-        "photoURL": {
-            "type": "string",
-            "format": "uri",
-            "description": "URL of the user's profile picture."
-        },
-        "createdAt": {
+        "exampleMessage": {
           "type": "string",
-          "format": "date-time",
-          "description": "Timestamp of when the user account was created."
-        },
-        "messageCount": {
-          "type": "number",
-          "description": "The number of messages the user has generated."
-        },
-        "plan": {
-          "type": "string",
-          "description": "The user's subscription plan (e.g., 'free', 'pro').",
-          "enum": ["free", "pro"]
+          "description": "An example of a sales message that can be generated using this tag."
         }
       },
       "required": [
-        "uid",
-        "email",
-        "createdAt",
-        "messageCount",
-        "plan"
+        "id",
+        "name",
+        "description"
       ]
     },
-    "Message": {
+    "ChatMessage": {
       "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Message",
+      "title": "ChatMessage",
       "type": "object",
-      "description": "Represents a generated message by a user.",
+      "description": "Represents a chat message within the VendaZap AI application.",
       "properties": {
-        "message": {
+        "id": {
           "type": "string",
-          "description": "The content of the generated message."
+          "description": "Unique identifier for the ChatMessage entity."
         },
-        "salesTag": {
+        "timestamp": {
           "type": "string",
-          "description": "The sales tag associated with the message."
+          "description": "The timestamp of when the message was created.",
+          "format": "date-time"
         },
-        "createdAt": {
+        "userInput": {
           "type": "string",
-          "format": "date-time",
-          "description": "Timestamp of when the message was created."
+          "description": "The raw user input in the chat."
+        },
+        "generatedMessage": {
+          "type": "string",
+          "description": "The AI-generated sales message based on user input and selected tag."
+        },
+        "salesTagId": {
+          "type": "string",
+          "description": "Reference to SalesTag. (Relationship: SalesTag 1:N ChatMessage)"
+        },
+        "niche": {
+          "type": "string",
+          "description": "The niche specified by the user for the sales message."
         }
       },
       "required": [
-        "message",
-        "salesTag",
-        "createdAt"
+        "id",
+        "timestamp",
+        "userInput",
+        "generatedMessage",
+        "salesTagId",
+        "niche"
       ]
     }
   },
   "auth": {
     "providers": [
-      "google"
+      "password",
+      "anonymous"
     ]
   },
   "firestore": {
     "structure": [
       {
-        "path": "/users/{userId}",
+        "path": "/users/{userId}/chat_messages/{messageId}",
         "definition": {
-          "entityName": "User",
+          "entityName": "ChatMessage",
           "schema": {
-            "$ref": "#/backend/entities/User"
+            "$ref": "#/backend/entities/ChatMessage"
           },
-          "description": "Stores user profiles.",
+          "description": "Stores chat messages for a specific user. This path enforces ownership, meaning only the user can read/write their own chat messages.",
           "params": [
             {
               "name": "userId",
-              "description": "Unique identifier for the user."
+              "description": "The unique identifier of the user."
+            },
+            {
+              "name": "messageId",
+              "description": "The unique identifier of the chat message."
             }
           ]
         }
       },
       {
-        "path": "/users/{userId}/messages/{messageId}",
+        "path": "/sales_tags/{salesTagId}",
         "definition": {
-          "entityName": "Message",
+          "entityName": "SalesTag",
           "schema": {
-            "$ref": "#/backend/entities/Message"
+            "$ref": "#/backend/entities/SalesTag"
           },
-          "description": "Stores messages generated by a user.",
+          "description": "Stores predefined sales tags.  These are globally readable.",
           "params": [
             {
-              "name": "userId",
-              "description": "The user's ID."
-            },
-            {
-              "name": "messageId",
-              "description": "The message's ID."
+              "name": "salesTagId",
+              "description": "The unique identifier of the sales tag."
             }
           ]
         }
       }
-    ]
+    ],
+    "reasoning": "The Firestore structure is designed to ensure authorization independence, clarity, and QAP support. It leverages path-based ownership for private user data and structural segregation to maintain a homogeneous security posture within collections. Denormalization is used to avoid `get()` calls in security rules, enabling atomic operations. Specifically:\n\n*   `/users/{userId}/chat_messages/{messageId}`: This path structure enforces strict ownership. Each user has their own collection of chat messages. No other user can access these messages.\n*   `/sales_tags/{salesTagId}`: This collection stores global sales tags.  All users can read these tags.\n\nThis structure supports secure `list` operations for both chat messages (only the owner can list) and sales tags (all users can list)."
   }
 }

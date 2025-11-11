@@ -1,13 +1,63 @@
-
+/**
+ * @fileoverview Firestore Security Rules for VendaZap AI.
+ *
+ * Core Philosophy:
+ * This ruleset enforces a strict user-ownership model for chat messages,
+ * ensuring that only the authenticated user can access their own data.
+ * Public read access is granted to sales tags, which are considered
+ * global, read-only data.
+ *
+ * Data Structure:
+ * - /users/{userId}/chat_messages/{messageId}: Stores private chat messages for each user.
+ * - /sales_tags/{salesTagId}: Stores publicly available sales tags.
+ *
+ * Key Security Decisions:
+ * - User listing is disallowed to protect user privacy.
+ * - Sales tags are globally readable but not writable by users.
+ * - Data validation is minimized to facilitate rapid prototyping and iteration. Only authorization-critical data is validated.
+ */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /users/{userId} {
-      allow read, write: if request.auth.uid == userId;
-      
-      match /messages/{messageId} {
-        allow read, write: if request.auth.uid == userId;
+
+    /**
+     * @description Enforces owner-only access to chat messages for a given user.
+     * @path /users/{userId}/chat_messages/{messageId}
+     * @allow (create) User 'user123' can create a new chat message under their own user ID.
+     * @allow (get, update, delete, list) User 'user123' can access their own chat message.
+     * @deny (create, get, update, delete, list) User 'user456' cannot access chat messages under 'user123'.
+     * @principle Enforces document ownership for writes and restricts access to a user's data tree.
+     */
+    match /users/{userId}/chat_messages/{messageId} {
+      function isSignedIn() {
+        return request.auth != null;
       }
+
+      function isOwner(userId) {
+        return isSignedIn() && request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
+      allow create: if isOwner(userId) && request.resource.data.id == messageId;
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Allows public read access to sales tags.
+     * @path /sales_tags/{salesTagId}
+     * @allow (get, list) Any user, signed in or not, can read sales tags.
+     * @deny (create, update, delete) No user can create, update, or delete sales tags.
+     * @principle Provides public read access to globally available data while restricting write access.
+     */
+    match /sales_tags/{salesTagId} {
+      allow get, list: if true;
+      allow create, update, delete: if false;
     }
   }
 }
