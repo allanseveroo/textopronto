@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://textopronto.com/sitemap.xml
