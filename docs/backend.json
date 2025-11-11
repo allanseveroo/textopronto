@@ -37,7 +37,7 @@
   },
   "auth": {
     "providers": [
-      "phone"
+      "google"
     ]
   },
   "firestore": {
