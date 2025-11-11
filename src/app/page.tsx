@@ -7,6 +7,7 @@ import * as z from 'zod';
 import {
   generateWhatsAppMessage,
 } from '@/ai/flows/generate-whatsapp-message';
+import TextareaAutosize from 'react-textarea-autosize';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -23,7 +24,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
 import { Loader2, ArrowUp, Check, Copy, LogOut } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -136,8 +136,8 @@ export default function Home() {
   });
 
   const handleGoogleSignIn = async () => {
-    if (!auth) {
-      toast({ variant: 'destructive', title: 'Erro', description: 'Serviço de autenticação não disponível.' });
+    if (!auth || !firestore) {
+      toast({ variant: 'destructive', title: 'Erro', description: 'Serviço de autenticação ou banco de dados não disponível.' });
       return;
     }
     setIsAuthLoading(true);
@@ -184,15 +184,26 @@ export default function Home() {
     }
 
     if (userDocRef) {
-        const userDocSnap = await getDoc(userDocRef);
-        if (userDocSnap.exists() && userDocSnap.data().messageCount >= 5) {
+        try {
+            const userDocSnap = await getDoc(userDocRef);
+            if (userDocSnap.exists() && userDocSnap.data().messageCount >= 5) {
+                toast({
+                    variant: 'destructive',
+                    title: 'Limite atingido',
+                    description: 'Você já gerou 5 mensagens. Para gerar mais, por favor, entre em contato.',
+                });
+                return;
+            }
+        } catch(e) {
+            console.error("Error checking user message count", e);
             toast({
                 variant: 'destructive',
-                title: 'Limite atingido',
-                description: 'Você já gerou 5 mensagens. Para gerar mais, por favor, entre em contato.',
+                title: 'Erro ao verificar o limite',
+                description: 'Não foi possível verificar seu limite de mensagens. Tente novamente.',
             });
             return;
         }
+
     }
 
     startTransition(async () => {
@@ -326,10 +337,18 @@ export default function Home() {
                     render={({ field }) => (
                       <FormItem className="flex-grow ml-2">
                         <FormControl>
-                          <Input
+                          <TextareaAutosize
                             placeholder="Escreva sobre seu negócio aqui"
-                            className="bg-transparent border-none focus-visible:ring-0 focus-visible:ring-offset-0 text-base placeholder:text-neutral-400"
+                            className="w-full bg-transparent border-none focus:outline-none focus:ring-0 resize-none text-base placeholder:text-neutral-400 leading-tight py-2"
+                            minRows={1}
+                            maxRows={5}
                             {...field}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                form.handleSubmit(onSubmit)();
+                              }
+                            }}
                           />
                         </FormControl>
                         <FormMessage />
