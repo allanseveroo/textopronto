@@ -115,7 +115,6 @@ export default function Home() {
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
   const firestore = useFirestore();
-  const [isAuthLoading, setIsAuthLoading] = useState(true); // Start true to handle redirect
 
 
   const fetchMessageCount = useCallback(async (uid: string) => {
@@ -136,7 +135,7 @@ export default function Home() {
 
 
   useEffect(() => {
-    if (!auth) return;
+    if (!auth || isUserLoading) return;
 
     getRedirectResult(auth)
       .then(async (result) => {
@@ -165,7 +164,8 @@ export default function Home() {
         }
       })
       .catch((error) => {
-        if (error.code !== 'auth/popup-closed-by-user') {
+        // We can ignore certain errors like popup closed by user
+        if (error.code !== 'auth/popup-closed-by-user' && error.code !== 'auth/cancelled-popup-request') {
           console.error("Google Sign-In Error: ", error);
           toast({
             variant: 'destructive',
@@ -173,11 +173,8 @@ export default function Home() {
             description: error.message || 'Não foi possível fazer login com o Google. Tente novamente.',
           });
         }
-      })
-      .finally(() => {
-        setIsAuthLoading(false);
       });
-  }, [auth, firestore, toast]);
+  }, [auth, firestore, toast, isUserLoading]);
 
   const handleGoogleSignIn = async () => {
     if (!auth) {
@@ -188,9 +185,8 @@ export default function Home() {
         });
         return;
     }
-    setIsAuthLoading(true);
     const provider = new GoogleAuthProvider();
-    // We use signInWithRedirect to avoid popup issues.
+    // We use signInWithRedirect to avoid popup issues on mobile and some browsers.
     await signInWithRedirect(auth, provider);
   };
 
@@ -257,7 +253,6 @@ export default function Home() {
     setMessageCount(0);
   };
   
-  const isLoading = isUserLoading || isAuthLoading;
 
   return (
     <div className="flex flex-col min-h-screen font-sans bg-white">
@@ -365,7 +360,7 @@ export default function Home() {
                     type="submit"
                     size="icon"
                     className="ml-2 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white flex-shrink-0"
-                    disabled={isGenerating || isLoading}
+                    disabled={isGenerating || isUserLoading}
                   >
                     {isGenerating ? (
                       <Loader2 className="h-5 w-5 animate-spin" />
@@ -394,8 +389,8 @@ export default function Home() {
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
-            <Button onClick={handleGoogleSignIn} className="w-full" disabled={isLoading}>
-              {isLoading ? (
+            <Button onClick={handleGoogleSignIn} className="w-full" disabled={isUserLoading}>
+              {isUserLoading ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 <svg className="mr-2 h-4 w-4" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512"><path fill="currentColor" d="M488 261.8C488 403.3 381.5 512 244 512 109.8 512 0 402.2 0 256S109.8 0 244 0c73 0 135.7 28.7 182.4 75.2L376.6 128.8c-23.7-22.5-57.2-36.8-94.6-36.8-70.3 0-127.5 57.2-127.5 128s57.2 128 127.5 128c77.9 0 113.8-59.5 118.5-91.1H244v-64h243.2c1.3 12.6 2.8 25.1 2.8 38.6z"></path></svg>
