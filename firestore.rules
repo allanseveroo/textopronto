@@ -2,23 +2,46 @@
  * @fileoverview Firestore Security Rules for VendaZap AI.
  *
  * Core Philosophy:
- * This ruleset enforces a strict user-ownership model for chat messages,
+ * This ruleset enforces a strict user-ownership model for chat messages and user profiles,
  * ensuring that only the authenticated user can access their own data.
  * Public read access is granted to sales tags, which are considered
  * global, read-only data.
  *
  * Data Structure:
+ * - /users/{userId}: Stores private profile data for each user.
  * - /users/{userId}/chat_messages/{messageId}: Stores private chat messages for each user.
  * - /sales_tags/{salesTagId}: Stores publicly available sales tags.
- *
- * Key Security Decisions:
- * - User listing is disallowed to protect user privacy.
- * - Sales tags are globally readable but not writable by users.
- * - Data validation is minimized to facilitate rapid prototyping and iteration. Only authorization-critical data is validated.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    /**
+     * Helper functions for cleaner and more reusable rules.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * @description Enforces owner-only access to user profiles.
+     * @path /users/{userId}
+     * @allow (create) A user can create their own profile.
+     * @allow (get, update) A user can read or update their own profile.
+     * @deny Any user trying to access another user's profile.
+     */
+    match /users/{userId} {
+      allow read, update: if isOwner(userId);
+      // Allow create if the user is creating their own document and the data is valid.
+      allow create: if isOwner(userId)
+                    && request.resource.data.userId == userId
+                    && request.resource.data.plan == 'free'
+                    && request.resource.data.messageCount == 0;
+    }
 
     /**
      * @description Enforces owner-only access to chat messages for a given user.
@@ -29,14 +52,6 @@ service cloud.firestore {
      * @principle Enforces document ownership for writes and restricts access to a user's data tree.
      */
     match /users/{userId}/chat_messages/{messageId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      function isOwner(userId) {
-        return isSignedIn() && request.auth.uid == userId;
-      }
-
       function isExistingOwner(userId) {
         return isOwner(userId) && resource != null;
       }

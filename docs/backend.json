@@ -1,5 +1,32 @@
 {
   "entities": {
+    "UserProfile": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "UserProfile",
+      "type": "object",
+      "description": "Represents a user's profile, including their plan and usage.",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The unique identifier for the user, matching the Firebase Auth UID."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "The user's email address."
+        },
+        "plan": {
+          "type": "string",
+          "enum": ["free", "pro"],
+          "description": "The user's subscription plan."
+        },
+        "messageCount": {
+          "type": "number",
+          "description": "The number of messages the user has generated."
+        }
+      },
+      "required": ["userId", "email", "plan", "messageCount"]
+    },
     "SalesTag": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "SalesTag",
@@ -74,17 +101,32 @@
   "auth": {
     "providers": [
       "password",
-      "anonymous"
+      "anonymous",
+      "google.com"
     ]
   },
   "firestore": {
     "structure": [
       {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "UserProfile",
+          "schema": {
+            "$ref": "#/entities/UserProfile"
+          },
+          "description": "Stores the profile for a single user, keyed by their auth UID. Enforces that only the authenticated user can access their own profile.",
+          "params": [{
+            "name": "userId",
+            "description": "The unique identifier of the user, from Firebase Authentication."
+          }]
+        }
+      },
+      {
         "path": "/users/{userId}/chat_messages/{messageId}",
         "definition": {
           "entityName": "ChatMessage",
           "schema": {
-            "$ref": "#/backend/entities/ChatMessage"
+            "$ref": "#/entities/ChatMessage"
           },
           "description": "Stores chat messages for a specific user. This path enforces ownership, meaning only the user can read/write their own chat messages.",
           "params": [
@@ -104,9 +146,9 @@
         "definition": {
           "entityName": "SalesTag",
           "schema": {
-            "$ref": "#/backend/entities/SalesTag"
+            "$ref": "#/entities/SalesTag"
           },
-          "description": "Stores predefined sales tags.  These are globally readable.",
+          "description": "Stores predefined sales tags. These are globally readable.",
           "params": [
             {
               "name": "salesTagId",
@@ -115,7 +157,6 @@
           ]
         }
       }
-    ],
-    "reasoning": "The Firestore structure is designed to ensure authorization independence, clarity, and QAP support. It leverages path-based ownership for private user data and structural segregation to maintain a homogeneous security posture within collections. Denormalization is used to avoid `get()` calls in security rules, enabling atomic operations. Specifically:\n\n*   `/users/{userId}/chat_messages/{messageId}`: This path structure enforces strict ownership. Each user has their own collection of chat messages. No other user can access these messages.\n*   `/sales_tags/{salesTagId}`: This collection stores global sales tags.  All users can read these tags.\n\nThis structure supports secure `list` operations for both chat messages (only the owner can list) and sales tags (all users can list)."
+    ]
   }
 }

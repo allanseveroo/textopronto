@@ -33,8 +33,9 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { useAuth, useUser } from '@/firebase';
+import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
+import { doc, getDoc, setDoc, updateDoc, increment, serverTimestamp } from 'firebase/firestore';
 
 const formSchema = z.object({
   salesTag: z.string().default('Saudação'),
@@ -63,6 +64,8 @@ const salesTags = [
   { value: 'Lembrete de Evento', label: '🔔 Lembrete de Evento' },
   { value: 'Outros', label: '💬 Outros' },
 ];
+
+const FREE_PLAN_LIMIT = 5;
 
 const GeneratedMessageCard = ({ message, salesTag, index }: { message: string; salesTag: string; index: number }) => {
   const [isCopied, setIsCopied] = useState(false);
@@ -102,14 +105,52 @@ export default function Home() {
   const [isGenerating, startTransition] = useTransition();
   const [generatedMessages, setGeneratedMessages] = useState<GeneratedMessage[]>([]);
   
-  const auth = useAuth(); // Auth instance from Firebase
-  const { user, isUserLoading } = useUser(); // User state from Firebase
+  const auth = useAuth();
+  const firestore = useFirestore();
+  const { user, isUserLoading } = useUser();
   const { toast } = useToast();
+
+  const userProfileRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, 'users', user.uid);
+  }, [firestore, user]);
+
+  const { data: userProfile, isLoading: isProfileLoading } = useDoc(userProfileRef);
+
+  useEffect(() => {
+    if (user && firestore && !isProfileLoading && !userProfile) {
+      const manageUserProfile = async () => {
+        if (!user.email) return;
+
+        const docRef = doc(firestore, 'users', user.uid);
+        const docSnap = await getDoc(docRef);
+
+        if (!docSnap.exists()) {
+          try {
+            await setDoc(docRef, {
+              userId: user.uid,
+              email: user.email,
+              plan: 'free',
+              messageCount: 0,
+            });
+          } catch (error) {
+            console.error("Error creating user profile:", error);
+            toast({
+              variant: "destructive",
+              title: "Erro ao criar perfil",
+              description: "Não foi possível criar seu perfil de usuário. Tente novamente."
+            });
+          }
+        }
+      };
+      manageUserProfile();
+    }
+  }, [user, firestore, userProfile, isProfileLoading, toast]);
+
 
   const handleSignIn = async () => {
     const provider = new GoogleAuthProvider();
     try {
-      // Use Firebase to sign in
       await signInWithPopup(auth, provider);
     } catch (error) {
       console.error("Error signing in with Google", error);
@@ -123,8 +164,8 @@ export default function Home() {
 
   const handleSignOut = async () => {
     try {
-      // Use Firebase to sign out
       await signOut(auth);
+      setGeneratedMessages([]);
     } catch (error) {
       console.error("Error signing out", error);
       toast({
@@ -153,6 +194,15 @@ export default function Home() {
       return;
     }
 
+    if (userProfile?.plan === 'free' && userProfile.messageCount >= FREE_PLAN_LIMIT) {
+      toast({
+        variant: 'destructive',
+        title: 'Limite Atingido',
+        description: 'Você atingiu o limite de mensagens do plano gratuito.',
+      });
+      return;
+    }
+
     startTransition(async () => {
       try {
         const result = await generateWhatsAppMessage({
@@ -167,6 +217,13 @@ export default function Home() {
         };
 
         setGeneratedMessages(prev => [newMessage, ...prev]);
+
+        // Increment message count in Firestore
+        if (userProfileRef) {
+          await updateDoc(userProfileRef, {
+            messageCount: increment(1)
+          });
+        }
 
         form.reset({
           salesTag: values.salesTag,
@@ -227,6 +284,11 @@ export default function Home() {
                   <h2 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
                     Crie textos prontos de vendas para WhatsApp personalizados para seu negócio.
                   </h2>
+                  {user && userProfile && userProfile.plan === 'free' && (
+                    <p className="mt-4 text-muted-foreground">
+                      Você usou {userProfile.messageCount} de {FREE_PLAN_LIMIT} mensagens do seu plano gratuito.
+                    </p>
+                  )}
               </div>
             )}
             
@@ -320,7 +382,7 @@ export default function Home() {
                     type="submit"
                     size="icon"
                     className="ml-2 bg-emerald-500 hover:bg-emerald-600 text-white flex-shrink-0 rounded-lg"
-                    disabled={isGenerating}
+                    disabled={isGenerating || isProfileLoading}
                   >
                     {isGenerating ? (
                       <Loader2 className="h-5 w-5 animate-spin" />
