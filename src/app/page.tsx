@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useTransition, useEffect, useCallback } from 'react';
+import { useState, useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -25,7 +25,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { Loader2, ArrowUp, Check, Copy, LogOut } from 'lucide-react';
+import { Loader2, ArrowUp, Check, Copy } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   Card,
@@ -33,17 +33,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog';
-import { useAuth, useUser, useFirestore } from '@/firebase';
-import { signOut, signInWithRedirect, GoogleAuthProvider, getRedirectResult } from 'firebase/auth';
-import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
-
 
 const formSchema = z.object({
   salesTag: z.string().default('Saudação'),
@@ -109,87 +98,7 @@ const GeneratedMessageCard = ({ message, salesTag, index }: { message: string; s
 export default function Home() {
   const [isGenerating, startTransition] = useTransition();
   const [generatedMessages, setGeneratedMessages] = useState<GeneratedMessage[]>([]);
-  const [showLoginModal, setShowLoginModal] = useState(false);
-  const [messageCount, setMessageCount] = useState(0);
   const { toast } = useToast();
-  const { user, isUserLoading } = useUser();
-  const auth = useAuth();
-  const firestore = useFirestore();
-
-
-  const fetchMessageCount = useCallback(async (uid: string) => {
-    if (!firestore) return;
-    const userDocRef = doc(firestore, 'users', uid);
-    const userDoc = await getDoc(userDocRef);
-    if (userDoc.exists()) {
-      setMessageCount(userDoc.data().messageCount || 0);
-    }
-  }, [firestore]);
-
-
-  useEffect(() => {
-    if (user) {
-      fetchMessageCount(user.uid);
-    }
-  }, [user, fetchMessageCount]);
-
-
-  useEffect(() => {
-    if (!auth || isUserLoading) return;
-
-    getRedirectResult(auth)
-      .then(async (result) => {
-        if (result) {
-          const newUser = result.user;
-          if (firestore && newUser) {
-            const userDocRef = doc(firestore, 'users', newUser.uid);
-            const userDoc = await getDoc(userDocRef);
-            if (!userDoc.exists()) {
-              await setDoc(userDocRef, {
-                id: newUser.uid,
-                email: newUser.email,
-                name: newUser.displayName,
-                createdAt: serverTimestamp(),
-                messageCount: 0,
-              });
-              setMessageCount(0);
-            } else {
-              setMessageCount(userDoc.data().messageCount || 0);
-            }
-          }
-          toast({
-            title: 'Login realizado com sucesso!',
-          });
-          setShowLoginModal(false);
-        }
-      })
-      .catch((error) => {
-        // We can ignore certain errors like popup closed by user
-        if (error.code !== 'auth/popup-closed-by-user' && error.code !== 'auth/cancelled-popup-request') {
-          console.error("Google Sign-In Error: ", error);
-          toast({
-            variant: 'destructive',
-            title: 'Erro ao fazer login',
-            description: error.message || 'Não foi possível fazer login com o Google. Tente novamente.',
-          });
-        }
-      });
-  }, [auth, firestore, toast, isUserLoading]);
-
-  const handleGoogleSignIn = async () => {
-    if (!auth) {
-        toast({
-            variant: 'destructive',
-            title: 'Erro',
-            description: 'Serviço de autenticação não disponível.',
-        });
-        return;
-    }
-    const provider = new GoogleAuthProvider();
-    // We use signInWithRedirect to avoid popup issues on mobile and some browsers.
-    await signInWithRedirect(auth, provider);
-  };
-
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -200,21 +109,6 @@ export default function Home() {
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    if (!user) {
-      setShowLoginModal(true);
-      return;
-    }
-    
-    if(messageCount >= 5) {
-      toast({
-        variant: "destructive",
-        title: "Limite de mensagens atingido",
-        description: "Você já gerou 5 mensagens gratuitas. Faça upgrade para continuar.",
-      });
-      return;
-    }
-
-
     startTransition(async () => {
       try {
         const result = await generateWhatsAppMessage({
@@ -223,13 +117,6 @@ export default function Home() {
         });
         setGeneratedMessages(prev => [{ message: result.message, salesTag: values.salesTag }, ...prev]);
         
-        if (firestore && user) {
-          const newCount = messageCount + 1;
-          const userDocRef = doc(firestore, 'users', user.uid);
-          await setDoc(userDocRef, { messageCount: newCount }, { merge: true });
-          setMessageCount(newCount);
-        }
-
         form.reset({
           salesTag: values.salesTag,
           nicheDetails: '',
@@ -246,25 +133,11 @@ export default function Home() {
     });
   }
 
-  const handleLogout = async () => {
-    if (!auth) return;
-    await signOut(auth);
-    setGeneratedMessages([]);
-    setMessageCount(0);
-  };
-  
-
   return (
     <div className="flex flex-col min-h-screen font-sans bg-white">
        <header className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
           <h1 className="text-2xl font-bold text-foreground">TextoPronto</h1>
-          {user && (
-            <Button variant="ghost" onClick={handleLogout}>
-              <LogOut className="mr-2 h-4 w-4" />
-              Sair
-            </Button>
-          )}
         </div>
       </header>
       <main className="flex-1 flex flex-col items-center px-4 pt-8">
@@ -360,7 +233,7 @@ export default function Home() {
                     type="submit"
                     size="icon"
                     className="ml-2 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white flex-shrink-0"
-                    disabled={isGenerating || isUserLoading}
+                    disabled={isGenerating}
                   >
                     {isGenerating ? (
                       <Loader2 className="h-5 w-5 animate-spin" />
@@ -380,26 +253,6 @@ export default function Home() {
           <p>Produto do Revizap</p>
         </div>
       </footer>
-      <Dialog open={showLoginModal} onOpenChange={setShowLoginModal}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle className="text-2xl">Cadastre-se Grátis</DialogTitle>
-            <DialogDescription>
-              Use sua conta do Google para gerar até 5 mensagens grátis.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <Button onClick={handleGoogleSignIn} className="w-full" disabled={isUserLoading}>
-              {isUserLoading ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <svg className="mr-2 h-4 w-4" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512"><path fill="currentColor" d="M488 261.8C488 403.3 381.5 512 244 512 109.8 512 0 402.2 0 256S109.8 0 244 0c73 0 135.7 28.7 182.4 75.2L376.6 128.8c-23.7-22.5-57.2-36.8-94.6-36.8-70.3 0-127.5 57.2-127.5 128s57.2 128 127.5 128c77.9 0 113.8-59.5 118.5-91.1H244v-64h243.2c1.3 12.6 2.8 25.1 2.8 38.6z"></path></svg>
-              )}
-              Entrar com o Google
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

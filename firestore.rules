@@ -1,78 +1,8 @@
-/**
- * @fileoverview Firestore Security Rules for VendaZap AI application.
- *
- * Core Philosophy:
- * This ruleset enforces a strict user-ownership model. Each user can only access their own data stored under their unique user ID.
- *
- * Data Structure:
- * All user data is nested under the /users/{userId} collection.
- *
- * Key Security Decisions:
- * - User listing is disallowed for privacy.
- * - The rules strictly enforce that the authenticated user's UID matches the {userId} path parameter for all operations.
- *
- * Denormalization for Authorization:
- * - The user's UID is implicitly denormalized into the document path (/users/{userId}), eliminating the need for a separate `uid` field within the document and the associated read operations to verify ownership.
- */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    /**
-     * @description Manages user profile data, restricting access to the authenticated user.
-     * @path /users/{userId}
-     * @allow (create) - Authenticated user with UID 'user123' can create their own profile at /users/user123.
-     * @allow (get, update, delete) - Authenticated user with UID 'user123' can access, update, or delete their own profile at /users/user123.
-     * @deny (create, get, update, delete) - Authenticated user with UID 'user456' cannot access or modify profile data at /users/user123.
-     * @principle Enforces strict user ownership for data access.
-     */
-    match /users/{userId} {
-      // Check if the user is signed in.
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      // Check if the requested user ID matches the authenticated user's UID.
-      function isOwner(userId) {
-        return isSignedIn() && request.auth.uid == userId;
-      }
-
-      // Check if the user is signed in and is the owner, and also that the document exists
-      function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-      }
-      
-      // Check if the user is creating their own document.
-      function isCreatingOwnDocument(userId) {
-        return isOwner(userId)
-               && request.resource.data.id == userId
-               && request.resource.data.messageCount == 0;
-      }
-      
-      // Check if the user is updating their own message count and not other fields.
-      function isUpdatingOwnMessageCount(userId) {
-         return isExistingOwner(userId)
-                && request.resource.data.keys().hasAll(['messageCount'])
-                && request.resource.data.messageCount is number
-                && request.resource.data.messageCount > resource.data.messageCount
-                && request.resource.data.messageCount <= 5;
-      }
-
-
-      // Allow a user to create their own document if the UID matches.
-      allow create: if isCreatingOwnDocument(userId);
-
-      // Allow a user to read their own document if the UID matches.
-      allow get: if isOwner(userId);
-
-      // Disallow listing documents.
-      allow list: if false;
-
-      // Allow a user to update their own message count.
-      allow update: if isUpdatingOwnMessageCount(userId);
-
-      // Disallow deleting user documents.
-      allow delete: if false;
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
