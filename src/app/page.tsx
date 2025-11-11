@@ -31,7 +31,7 @@ import {
   DialogTitle,
   DialogDescription
 } from '@/components/ui/dialog';
-import { Loader2, ArrowUp, Check, Copy, LogOut, ExternalLink } from 'lucide-react';
+import { Loader2, ArrowUp, Check, Copy, LogOut } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   Card,
@@ -49,17 +49,10 @@ const formSchema = z.object({
 
 type GeneratedMessage = {
   id: number;
-  created_at: string;
   message: string;
-  sales_tag: string;
-  user_id: string;
+  salesTag: string;
 };
 
-type UserProfile = {
-  id: string;
-  plan: 'free' | 'pro';
-  message_count: number;
-};
 
 const salesTags = [
   { value: 'Saudação', label: '👋 Saudação' },
@@ -125,92 +118,35 @@ export default function Home() {
   const [isGenerating, startTransition] = useTransition();
   const [generatedMessages, setGeneratedMessages] = useState<GeneratedMessage[]>([]);
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const [showLimitModal, setShowLimitModal] = useState(false);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
 
   const { toast } = useToast();
 
-  const getProfile = useCallback(async (user: User) => {
-    try {
-      const { data, error, status } = await supabase
-        .from('profiles')
-        .select(`*`)
-        .eq('id', user.id)
-        .single();
-
-      if (error && status !== 406) {
-        throw error;
-      }
-
-      if (data) {
-        setProfile(data);
-      } else {
-        const { data: newProfile, error: insertError } = await supabase
-          .from('profiles')
-          .insert({ id: user.id, plan: 'free', message_count: 0 })
-          .select()
-          .single();
-        
-        if (insertError) throw insertError;
-        if (newProfile) setProfile(newProfile);
-      }
-    } catch (error: any) {
-      console.error('Error fetching or creating profile:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Erro ao carregar perfil',
-        description: error.message,
-      });
-    }
-  }, [toast]);
-
-  const getMessages = useCallback(async (user: User) => {
-    try {
-      const { data, error } = await supabase
-        .from('messages')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      if (data) setGeneratedMessages(data);
-
-    } catch (error: any) {
-      console.error('Error fetching messages:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Erro ao carregar mensagens',
-        description: error.message,
-      });
-    }
-  }, [toast]);
-
   useEffect(() => {
     setIsAuthLoading(true);
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        const currentUser = session?.user ?? null;
-        setUser(currentUser);
+    const getSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setUser(session?.user ?? null);
+      setIsAuthLoading(false);
+    };
 
-        if (currentUser) {
-          setShowLoginModal(false);
-          await Promise.all([getProfile(currentUser), getMessages(currentUser)]);
-        } else {
-          setProfile(null);
-          setGeneratedMessages([]);
-        }
-        
+    getSession();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setUser(session?.user ?? null);
         setIsAuthLoading(false);
+        if(session?.user){
+          setShowLoginModal(false);
+        }
       }
     );
 
     return () => {
       authListener.subscription.unsubscribe();
     };
-  }, [getProfile, getMessages]);
+  }, []);
 
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -250,20 +186,6 @@ export default function Home() {
       setShowLoginModal(true);
       return;
     }
-    
-    if (!profile) {
-      toast({
-        variant: 'destructive',
-        title: 'Perfil não carregado',
-        description: 'Seu perfil ainda está carregando. Por favor, tente novamente em um momento.',
-      });
-      return;
-    }
-
-    if (profile.plan === 'free' && profile.message_count >= 5) {
-      setShowLimitModal(true);
-      return;
-    }
 
     startTransition(async () => {
       try {
@@ -272,31 +194,13 @@ export default function Home() {
           nicheDetails: values.nicheDetails,
         });
 
-        const { data: newMessage, error: insertError } = await supabase
-          .from('messages')
-          .insert({
-            message: result.message,
-            sales_tag: values.salesTag,
-            user_id: user.id,
-          })
-          .select()
-          .single();
-        
-        if (insertError) throw insertError;
-        if (!newMessage) throw new Error('Failed to save the new message.');
+        const newMessage: GeneratedMessage = {
+          id: Date.now(),
+          message: result.message,
+          salesTag: values.salesTag,
+        };
 
         setGeneratedMessages(prev => [newMessage, ...prev]);
-
-        const newCount = (profile.message_count || 0) + 1;
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update({ message_count: newCount })
-          .eq('id', user.id);
-
-        if (updateError) throw updateError;
-
-
-        setProfile(p => p ? { ...p, message_count: newCount } : null);
 
         form.reset({
           salesTag: values.salesTag,
@@ -305,12 +209,12 @@ export default function Home() {
 
       } catch (error: any)
       {
-        console.error('Failed to generate or save message:', error);
+        console.error('Failed to generate message:', error);
         toast({
           variant: 'destructive',
           title: 'Erro',
           description:
-            error.message || 'Ocorreu um problema com a IA ou ao salvar seu progresso. Por favor, tente novamente.',
+            error.message || 'Ocorreu um problema com a IA. Por favor, tente novamente.',
         });
       }
     });
@@ -325,6 +229,7 @@ export default function Home() {
         title: 'Logout realizado',
         description: 'Você foi desconectado com sucesso.',
       });
+      setGeneratedMessages([]); // Limpa as mensagens da sessão ao sair
     } catch (error: any) {
       console.error("Supabase Logout Error:", error);
       toast({
@@ -390,7 +295,7 @@ export default function Home() {
                 <GeneratedMessageCard
                   key={msg.id}
                   message={msg.message}
-                  salesTag={msg.sales_tag}
+                  salesTag={msg.salesTag}
                   index={generatedMessages.length - i}
                 />
               ))}
@@ -493,25 +398,5 @@ export default function Home() {
           </div>
         </DialogContent>
       </Dialog>
-      <Dialog open={showLimitModal} onOpenChange={setShowLimitModal}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Você atingiu o limite gratuito</DialogTitle>
-            <DialogDescription className="pt-2">
-              Adquira o plano de R$5,00 e tenha acesso ilimitado.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-             <Button asChild className="w-full bg-green-500 hover:bg-green-600">
-                <a href="https://wa.me/5551981936133" target="_blank">
-                  Falar no WhatsApp
-                  <ExternalLink className="ml-2 h-4 w-4" />
-                </a>
-              </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
-
-    
