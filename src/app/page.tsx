@@ -209,19 +209,19 @@ export default function Home() {
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       const currentUser = session?.user ?? null;
       setUser(currentUser);
-      setProfile(null);
-      setGeneratedMessages([]);
-
-      if (currentUser) {
+      
+      if (event === 'SIGNED_IN' && currentUser) {
+        setShowLoginModal(false);
         setIsAuthLoading(true);
         await Promise.all([
-          getProfile(currentUser),
-          getMessages(currentUser)
+            getProfile(currentUser),
+            getMessages(currentUser)
         ]);
-        setIsAuthLoading(false);
-      } else {
-        setIsAuthLoading(false);
+      } else if (event === 'SIGNED_OUT') {
+        setProfile(null);
+        setGeneratedMessages([]);
       }
+      setIsAuthLoading(false);
     });
 
     return () => {
@@ -350,7 +350,7 @@ export default function Home() {
         description: error.message || "Não foi possível sair. Por favor, tente novamente.",
       });
     } finally {
-       // onAuthStateChange will handle setting loading to false
+       setIsAuthLoading(false);
     }
   };
   
