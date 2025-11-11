@@ -160,25 +160,31 @@ export default function Home() {
 
 
   useEffect(() => {
-    if (!auth || !showLoginModal) return;
-    window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+    if (!auth || !showLoginModal || !document.getElementById('recaptcha-container')) return;
+    
+    // Ensure existing verifier is cleared before creating a new one
+    if (window.recaptchaVerifier) {
+      window.recaptchaVerifier.clear();
+    }
+
+    const verifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
       'size': 'invisible',
       'callback': (response: any) => {
         // reCAPTCHA solved, allow signInWithPhoneNumber.
       }
     });
+    window.recaptchaVerifier = verifier;
+
     return () => {
-      if (window.recaptchaVerifier) {
-        window.recaptchaVerifier.clear();
-      }
+      verifier.clear();
     }
   }, [auth, showLoginModal]);
 
   const onSendCode = async (values: z.infer<typeof phoneSchema>) => {
     setIsSendingCode(true);
     try {
-      if (!auth) {
-        throw new Error('Serviço de autenticação não está pronto');
+      if (!auth || !window.recaptchaVerifier) {
+        throw new Error('Serviço de autenticação ou reCAPTCHA não está pronto');
       }
       const verifier = window.recaptchaVerifier;
       const result = await signInWithPhoneNumber(auth, values.phoneNumber, verifier);
