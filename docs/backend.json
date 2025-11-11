@@ -41,42 +41,6 @@
         "createdAt",
         "messageCount"
       ]
-    },
-    "GeneratedMessage": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "GeneratedMessage",
-      "type": "object",
-      "description": "Represents a generated sales message.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the GeneratedMessage entity."
-        },
-        "salesTagId": {
-          "type": "string",
-          "description": "Reference to SalesTag. (Relationship: SalesTag 1:N GeneratedMessage)"
-        },
-        "niche": {
-          "type": "string",
-          "description": "The specific niche the message is tailored for."
-        },
-        "messageText": {
-          "type": "string",
-          "description": "The generated sales message text."
-        },
-        "generationTimestamp": {
-          "type": "string",
-          "description": "Timestamp indicating when the message was generated.",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "id",
-        "salesTagId",
-        "niche",
-        "messageText",
-        "generationTimestamp"
-      ]
     }
   },
   "auth": {
@@ -101,29 +65,7 @@
             }
           ]
         }
-      },
-      {
-        "path": "/users/{userId}/generatedMessages/{generatedMessageId}",
-        "definition": {
-          "entityName": "GeneratedMessage",
-          "schema": {
-            "$ref": "#/backend/entities/GeneratedMessage"
-          },
-          "description": "Stores generated sales messages for each user. Path-based ownership is enforced through the /users/{userId} path, ensuring that only the authenticated user can access their own messages.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "Unique identifier for the user."
-            },
-            {
-              "name": "generatedMessageId",
-              "description": "Unique identifier for the generated message."
-            }
-          ]
-        }
       }
     ]
   }
 }
-
-    
