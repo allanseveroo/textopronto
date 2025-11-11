@@ -139,16 +139,23 @@ export default function Home() {
 
   const phoneLoginForm = useForm<z.infer<typeof phoneLoginFormSchema>>({
     resolver: zodResolver(phoneLoginFormSchema),
+    defaultValues: {
+      phoneNumber: '',
+    },
   });
 
   const otpForm = useForm<z.infer<typeof otpFormSchema>>({
     resolver: zodResolver(otpFormSchema),
+    defaultValues: {
+      otp: '',
+    },
   });
 
 
   const setupRecaptcha = () => {
     if (!auth) return;
     if (!(window as any).recaptchaVerifier) {
+      if (!document.getElementById('recaptcha-container')) return;
       const verifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
         'size': 'invisible',
         'callback': (response: any) => {
@@ -157,16 +164,16 @@ export default function Home() {
       });
       (window as any).recaptchaVerifier = verifier;
     }
+    return (window as any).recaptchaVerifier;
   };
   
   const onSendCode = async (values: z.infer<typeof phoneLoginFormSchema>) => {
     setIsSendingCode(true);
-    setupRecaptcha();
     try {
-      if (!auth || !(window as any).recaptchaVerifier) {
+      const verifier = setupRecaptcha();
+      if (!auth || !verifier) {
         throw new Error('Serviço de autenticação ou reCAPTCHA não está pronto');
       }
-      const verifier = (window as any).recaptchaVerifier;
       const result = await signInWithPhoneNumber(auth, values.phoneNumber, verifier);
       setConfirmationResult(result);
       toast({
