@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, useEffect } from 'react';
+import { useState, useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -24,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2, ArrowUp, Check, Copy } from 'lucide-react';
+import { Loader2, ArrowUp, Check, Copy, LogIn, LogOut } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   Card,
@@ -32,8 +32,8 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { createClient } from "@/lib/supabase/client";
-import type { User } from "@supabase/supabase-js";
+import { useAuth, useUser } from '@/firebase';
+import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
 
 const formSchema = z.object({
   salesTag: z.string().default('Saudação'),
@@ -101,48 +101,36 @@ const GeneratedMessageCard = ({ message, salesTag, index }: { message: string; s
 export default function Home() {
   const [isGenerating, startTransition] = useTransition();
   const [generatedMessages, setGeneratedMessages] = useState<GeneratedMessage[]>([]);
-  const [user, setUser] = useState<User | null>(null);
-  const [isAuthLoading, setIsAuthLoading] = useState(true);
-
+  
+  const auth = useAuth();
+  const { user, isUserLoading } = useUser();
   const { toast } = useToast();
-  const supabase = createClient();
-
-  useEffect(() => {
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-      setIsAuthLoading(false);
-    };
-
-    getUser();
-
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setUser(session?.user ?? null);
-        setIsAuthLoading(false);
-      }
-    );
-
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
-  }, [supabase.auth]);
 
   const handleSignIn = async () => {
-    setIsAuthLoading(true);
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: window.location.origin,
-      },
-    });
+    const provider = new GoogleAuthProvider();
+    try {
+      await signInWithPopup(auth, provider);
+    } catch (error) {
+      console.error("Error signing in with Google", error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro de Login',
+        description: 'Não foi possível entrar com o Google. Tente novamente.',
+      });
+    }
   };
 
   const handleSignOut = async () => {
-    setIsAuthLoading(true);
-    await supabase.auth.signOut();
-    setUser(null);
-    setIsAuthLoading(false);
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error("Error signing out", error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao Sair',
+        description: 'Ocorreu um problema ao tentar sair. Tente novamente.',
+      });
+    }
   };
   
   const form = useForm<z.infer<typeof formSchema>>({
@@ -188,24 +176,25 @@ export default function Home() {
   }
 
   const renderAuthSection = () => {
-    if (isAuthLoading) {
+    if (isUserLoading) {
       return <Loader2 className="h-6 w-6 animate-spin" />;
     }
 
     if (user) {
       return (
         <div className="flex items-center gap-4">
-          <span className="text-sm text-foreground/80">Olá, {user.email}</span>
+          <span className="text-sm text-foreground/80 hidden sm:inline">Olá, {user.displayName || user.email}</span>
           <Button variant="outline" size="sm" onClick={handleSignOut}>
-            Sair
+            <LogOut className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Sair</span>
           </Button>
         </div>
       );
     }
 
     return (
-      <Button onClick={handleSignIn} disabled={isAuthLoading}>
-        {isAuthLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+      <Button onClick={handleSignIn} disabled={isUserLoading}>
+        <LogIn className="mr-2 h-4 w-4" />
         Entrar com Google
       </Button>
     );
