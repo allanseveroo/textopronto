@@ -3,13 +3,13 @@
 
 // Ensure that the environment variables are strings. If they are not set, they will be undefined.
 const firebaseConfig = {
-  apiKey: "AIzaSyA_mE137pD9nCPo-3J_h9iH0_1O2C7o4jA",
+  apiKey: "AIzaSyD_q5g3_yM-ca3bYd9d9p8l7k6j5f4h3g2",
   authDomain: "texto-pronto.firebaseapp.com",
   projectId: "texto-pronto",
   storageBucket: "texto-pronto.appspot.com",
-  messagingSenderId: "565382025734",
-  appId: "1:565382025734:web:0b25e708761726a91705de",
-  measurementId: "G-RFR2M8K1L9"
+  messagingSenderId: "565389654321",
+  appId: "1:565389654321:web:0b25e7f9a8d7c6b5e4d3c2",
+  measurementId: "G-RFR2M4B1E0"
 };
 
 // Basic validation to ensure all required environment variables are set.
