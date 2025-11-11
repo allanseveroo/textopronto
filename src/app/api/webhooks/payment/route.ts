@@ -1,36 +1,42 @@
 'use server';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { initializeApp, getApps, App } from 'firebase-admin/app';
+import { initializeApp, getApps, App, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
-import { credential } from 'firebase-admin';
 
-// Garante que o app Firebase Admin seja inicializado apenas uma vez.
-if (!getApps().length) {
-  try {
-    // Tenta inicializar a partir da variável de ambiente (ideal para produção)
-    if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-      const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
-      initializeApp({
-        credential: credential.cert(serviceAccount),
-      });
-    } else if (process.env.GCP_PROJECT) {
-       // Em ambientes Google Cloud (como App Hosting/Cloud Run), as credenciais são automáticas
-       initializeApp({
-         projectId: process.env.GCP_PROJECT,
-       });
-    }
-     else {
-      console.warn("FIREBASE_SERVICE_ACCOUNT_KEY ou GCP_PROJECT não está definida. A API de webhook pode não funcionar corretamente.");
-    }
-  } catch (error) {
-    console.error("Erro ao inicializar Firebase Admin SDK:", error);
+// Função para inicializar o Firebase Admin SDK de forma segura
+function initializeAdminApp(): App {
+  const apps = getApps();
+  if (apps.length > 0) {
+    return apps[0];
   }
+
+  // Em produção (App Hosting/Cloud Run), as credenciais são automáticas
+  if (process.env.GCP_PROJECT) {
+    return initializeApp();
+  }
+
+  // No ambiente de desenvolvimento, usar a chave da variável de ambiente
+  if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+    try {
+      const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+      return initializeApp({
+        credential: cert(serviceAccount),
+      });
+    } catch (error) {
+      console.error("Erro ao fazer parse da FIREBASE_SERVICE_ACCOUNT_KEY:", error);
+      throw new Error("A variável de ambiente FIREBASE_SERVICE_ACCOUNT_KEY não é um JSON válido.");
+    }
+  }
+
+  throw new Error("Não foi possível inicializar o Firebase Admin SDK. Defina GCP_PROJECT ou FIREBASE_SERVICE_ACCOUNT_KEY.");
 }
 
-const db = getFirestore();
 
 export async function POST(req: NextRequest) {
+  const adminApp = initializeAdminApp();
+  const db = getFirestore(adminApp);
+  
   const { headers } = req;
   const authorization = headers.get('Authorization');
 
