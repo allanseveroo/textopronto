@@ -233,19 +233,22 @@ export default function Home() {
     try {
       const result = await signInWithPopup(auth, provider);
       const currentUser = result.user;
-      
-      // Ensure profile exists after sign in
+  
       await manageUserProfile(currentUser);
-
       setIsLoginModalOpen(false);
-
-      // If there was a pending action, run it now
+  
       if (formValuesRef.current) {
         runGeneration(formValuesRef.current);
-        formValuesRef.current = null; // Clear the pending action
+        formValuesRef.current = null;
       }
-    } catch (error) {
-      console.error("Error signing in with Google", error);
+    } catch (error: any) {
+      // If the user closes the popup, do nothing.
+      if (error.code === 'auth/popup-closed-by-user') {
+        return;
+      }
+  
+      // For any other error, show a toast notification.
+      console.error('Error signing in with Google', error);
       toast({
         variant: 'destructive',
         title: 'Erro de Login',
@@ -433,5 +436,3 @@ export default function Home() {
       </footer>
     </div>
   );
-
-    
