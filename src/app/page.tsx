@@ -124,7 +124,6 @@ export default function Home() {
   const { toast } = useToast();
 
   useEffect(() => {
-    setIsAuthLoading(true);
     const getSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       setUser(session?.user ?? null);
@@ -134,10 +133,10 @@ export default function Home() {
     getSession();
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      (_event, session) => {
         setUser(session?.user ?? null);
         setIsAuthLoading(false);
-        if(session?.user){
+        if (session?.user) {
           setShowLoginModal(false);
         }
       }
@@ -400,3 +399,5 @@ export default function Home() {
       </Dialog>
     </div>
   );
+
+    
