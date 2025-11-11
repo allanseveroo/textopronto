@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, useEffect, useCallback } from 'react';
+import { useState, useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -24,14 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription
-} from '@/components/ui/dialog';
-import { Loader2, ArrowUp, Check, Copy, LogOut } from 'lucide-react';
+import { Loader2, ArrowUp, Check, Copy } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   Card,
@@ -39,8 +32,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { supabase } from '@/lib/supabase';
-import type { User } from '@supabase/supabase-js';
 
 const formSchema = z.object({
   salesTag: z.string().default('Saudação'),
@@ -70,15 +61,6 @@ const salesTags = [
   { value: 'Lembrete de Evento', label: '🔔 Lembrete de Evento' },
   { value: 'Outros', label: '💬 Outros' },
 ];
-
-const GoogleIcon = () => (
-  <svg className="mr-2 h-4 w-4" viewBox="0 0 48 48">
-    <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20s20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z" />
-    <path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C16.318 4 9.656 8.337 6.306 14.691z" />
-    <path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z" />
-    <path fill="#1976D2" d="M43.611 20.083H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571l6.19 5.238C42.015 34.823 44 29.833 44 24c0-1.341-.138-2.65-.389-3.917z" />
-  </svg>
-);
 
 const GeneratedMessageCard = ({ message, salesTag, index }: { message: string; salesTag: string; index: number }) => {
   const [isCopied, setIsCopied] = useState(false);
@@ -117,36 +99,8 @@ const GeneratedMessageCard = ({ message, salesTag, index }: { message: string; s
 export default function Home() {
   const [isGenerating, startTransition] = useTransition();
   const [generatedMessages, setGeneratedMessages] = useState<GeneratedMessage[]>([]);
-  const [showLoginModal, setShowLoginModal] = useState(false);
-  const [isAuthLoading, setIsAuthLoading] = useState(true);
-  const [user, setUser] = useState<User | null>(null);
 
   const { toast } = useToast();
-
-  useEffect(() => {
-    const getSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user ?? null);
-      setIsAuthLoading(false);
-    };
-
-    getSession();
-
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setUser(session?.user ?? null);
-        setIsAuthLoading(false);
-        if (session?.user) {
-          setShowLoginModal(false);
-        }
-      }
-    );
-
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
-  }, []);
-
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -156,36 +110,7 @@ export default function Home() {
     },
   });
 
-  const handleGoogleSignIn = async () => {
-    setIsAuthLoading(true);
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: window.location.origin,
-        },
-      });
-
-      if (error) {
-        throw error;
-      }
-    } catch (error: any) {
-      console.error("Supabase Google Sign-In Error:", error);
-      toast({
-        variant: "destructive",
-        title: "Erro de autenticação",
-        description: error.message || "Não foi possível fazer login com o Google. Por favor, tente novamente.",
-      });
-      setIsAuthLoading(false);
-    }
-  };
-
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    if (!user) {
-      setShowLoginModal(true);
-      return;
-    }
-
     startTransition(async () => {
       try {
         const result = await generateWhatsAppMessage({
@@ -219,39 +144,11 @@ export default function Home() {
     });
   }
 
-  const handleLogout = async () => {
-    setIsAuthLoading(true);
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      toast({
-        title: 'Logout realizado',
-        description: 'Você foi desconectado com sucesso.',
-      });
-      setGeneratedMessages([]); // Limpa as mensagens da sessão ao sair
-    } catch (error: any) {
-      console.error("Supabase Logout Error:", error);
-      toast({
-        variant: "destructive",
-        title: "Erro ao sair",
-        description: error.message || "Não foi possível sair. Por favor, tente novamente.",
-      });
-    } finally {
-       setIsAuthLoading(false);
-    }
-  };
-  
   return (
     <div className="flex flex-col min-h-screen font-sans bg-white">
        <header className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
           <h1 className="text-2xl font-bold text-foreground">TextoPronto</h1>
-           {user && (
-            <Button variant="ghost" onClick={handleLogout} disabled={isAuthLoading}>
-              <LogOut className="mr-2 h-4 w-4" />
-              Sair
-            </Button>
-          )}
         </div>
       </header>
       <main className="flex-1 flex flex-col items-center px-4 pt-8">
@@ -259,15 +156,9 @@ export default function Home() {
           <div className="flex-grow space-y-6">
             {generatedMessages.length === 0 && !isGenerating && (
               <div className="text-center">
-                 {isAuthLoading ? (
-                  <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
-                ) : !user ? (
                   <h2 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
                     Crie textos prontos de vendas para WhatsApp personalizados para seu negócio.
                   </h2>
-                ) : (
-                  <h2 className="text-2xl font-semibold text-foreground/80">Você ainda não gerou nenhuma mensagem.</h2>
-                )}
               </div>
             )}
             
@@ -361,7 +252,7 @@ export default function Home() {
                     type="submit"
                     size="icon"
                     className="ml-2 bg-emerald-500 hover:bg-emerald-600 text-white flex-shrink-0 rounded-lg"
-                    disabled={isGenerating || isAuthLoading}
+                    disabled={isGenerating}
                   >
                     {isGenerating ? (
                       <Loader2 className="h-5 w-5 animate-spin" />
@@ -381,23 +272,6 @@ export default function Home() {
           <p>Produto do Revizap</p>
         </div>
       </footer>
-      <Dialog open={showLoginModal} onOpenChange={setShowLoginModal}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Cadastro Grátis</DialogTitle>
-            <DialogDescription>
-              Entre com sua conta do Google para começar a usar.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-             <Button onClick={handleGoogleSignIn} className="w-full" disabled={isAuthLoading}>
-                {isAuthLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GoogleIcon />}
-                Entrar com Google
-              </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
-
-    
+}
