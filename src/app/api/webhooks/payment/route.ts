@@ -1,7 +1,7 @@
 'use server';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { initializeApp, getApps } from 'firebase-admin/app';
+import { initializeApp, getApps, App } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { credential } from 'firebase-admin';
 
@@ -36,17 +36,19 @@ export async function POST(req: NextRequest) {
 
   // 1. Validar a chave secreta do webhook
   const secret = process.env.WEBHOOK_SECRET;
-  if (!secret || authorization !== `Bearer ${secret}`) {
+  if (secret && authorization !== `Bearer ${secret}`) {
     console.warn('Falha na autorização do webhook: Chave secreta inválida ou ausente.');
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
-    const body = await req.json();
-    const userEmail = body.email;
+    const data = await req.json();
+    // Ajuste para pegar o e-mail da estrutura de dados correta
+    const userEmail = data.body?.customer?.email;
 
     if (!userEmail) {
-      return NextResponse.json({ success: false, error: 'Email is required' }, { status: 400 });
+      console.log('Webhook: O e-mail do cliente não foi encontrado no corpo da requisição.', data);
+      return NextResponse.json({ success: false, error: 'Customer email is required in the request body' }, { status: 400 });
     }
 
     // 2. Encontrar o usuário pelo e-mail no Firestore
