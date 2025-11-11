@@ -41,7 +41,7 @@ import {
   DialogDescription
 } from '@/components/ui/dialog';
 import { useUser, useAuth, useFirestore, useMemoFirebase } from '@/firebase';
-import { RecaptchaVerifier, signInWithPhoneNumber, signOut } from 'firebase/auth';
+import { RecaptchaVerifier, signInWithPhoneNumber, signOut, ConfirmationResult } from 'firebase/auth';
 import { doc, setDoc, getDoc, serverTimestamp, increment } from 'firebase/firestore';
 
 const formSchema = z.object({
@@ -118,7 +118,7 @@ export default function Home() {
   const [isGenerating, startTransition] = useTransition();
   const [generatedMessages, setGeneratedMessages] = useState<GeneratedMessage[]>([]);
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const [confirmationResult, setConfirmationResult] = useState<any>(null);
+  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
   const [isSendingCode, setIsSendingCode] = useState(false);
   const [isVerifyingCode, setIsVerifyingCode] = useState(false);
 
@@ -151,20 +151,24 @@ export default function Home() {
     },
   });
 
-
   const setupRecaptcha = () => {
-    if (!auth) return;
-    if (!(window as any).recaptchaVerifier) {
-      if (!document.getElementById('recaptcha-container')) return;
-      const verifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-        'size': 'invisible',
-        'callback': (response: any) => {
-          // reCAPTCHA solved, allow signInWithPhoneNumber.
-        }
-      });
-      (window as any).recaptchaVerifier = verifier;
+    if (!auth) return null;
+    
+    // Cleanup previous verifier
+    if ((window as any).recaptchaVerifier) {
+      (window as any).recaptchaVerifier.clear();
     }
-    return (window as any).recaptchaVerifier;
+  
+    const recaptchaContainer = document.getElementById('recaptcha-container');
+    if (!recaptchaContainer) return null;
+  
+    const verifier = new RecaptchaVerifier(auth, recaptchaContainer, {
+      'size': 'invisible',
+      'callback': (response: any) => {
+        // reCAPTCHA solved, allow signInWithPhoneNumber.
+      }
+    });
+    return verifier;
   };
   
   const onSendCode = async (values: z.infer<typeof phoneLoginFormSchema>) => {
@@ -174,6 +178,7 @@ export default function Home() {
       if (!auth || !verifier) {
         throw new Error('Serviço de autenticação ou reCAPTCHA não está pronto');
       }
+      (window as any).recaptchaVerifier = verifier;
       const result = await signInWithPhoneNumber(auth, values.phoneNumber, verifier);
       setConfirmationResult(result);
       toast({
@@ -182,10 +187,16 @@ export default function Home() {
       });
     } catch (error: any) {
       console.error('Error sending code:', error);
+      let description = 'Ocorreu um problema ao enviar o código. Tente novamente.';
+      if (error.code === 'auth/operation-not-allowed') {
+        description = 'A autenticação por telefone não está habilitada no seu projeto Firebase.';
+      } else if (error.code === 'auth/invalid-phone-number') {
+        description = 'O número de telefone fornecido não é válido.';
+      }
       toast({
         variant: 'destructive',
         title: 'Erro ao enviar código',
-        description: error.message || 'Ocorreu um problema ao enviar o código. Tente novamente.',
+        description: description,
       });
     } finally {
       setIsSendingCode(false);
@@ -209,6 +220,7 @@ export default function Home() {
         });
       }
       setShowLoginModal(false);
+      setConfirmationResult(null);
       toast({
         title: 'Login realizado com sucesso!',
         description: 'Agora você pode gerar suas mensagens.',
@@ -277,6 +289,7 @@ export default function Home() {
     if (auth) {
       await signOut(auth);
       setGeneratedMessages([]);
+      setConfirmationResult(null);
       toast({
         title: 'Logout realizado',
         description: 'Você foi desconectado com sucesso.',
@@ -337,7 +350,7 @@ export default function Home() {
               ))}
           </div>
 
-          <div className="sticky bottom-0 bg-background/80 backdrop-blur-sm py-8 mt-12">
+          <div className="sticky bottom-0 bg-white/80 backdrop-blur-sm py-8 mt-12">
             <Form {...form}>
               <form
                 onSubmit={form.handleSubmit(onSubmit)}
@@ -410,7 +423,12 @@ export default function Home() {
           <p>Produto do Revizap</p>
         </div>
       </footer>
-        <Dialog open={showLoginModal} onOpenChange={setShowLoginModal}>
+        <Dialog open={showLoginModal} onOpenChange={(isOpen) => {
+            setShowLoginModal(isOpen);
+            if (!isOpen) {
+              setConfirmationResult(null); // Reset on close
+            }
+        }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Cadastro Grátis</DialogTitle>
