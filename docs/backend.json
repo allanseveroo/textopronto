@@ -33,6 +33,10 @@
         "messageCount": {
           "type": "number",
           "description": "The number of messages the user has generated."
+        },
+        "plan": {
+          "type": "string",
+          "description": "The user's subscription plan (e.g., 'free', 'pro')."
         }
       },
       "required": [
