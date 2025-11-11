@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "User": {
@@ -6,13 +7,23 @@
       "type": "object",
       "description": "Represents a user in the system.",
       "properties": {
-        "id": {
+        "uid": {
           "type": "string",
-          "description": "Unique identifier for the user."
+          "description": "Unique identifier for the user, from Firebase Auth."
         },
-        "phoneNumber": {
+        "email": {
           "type": "string",
-          "description": "The user's phone number."
+          "format": "email",
+          "description": "The user's email address."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "The user's display name."
+        },
+        "photoURL": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL of the user's profile picture."
         },
         "createdAt": {
           "type": "string",
@@ -25,8 +36,8 @@
         }
       },
       "required": [
-        "id",
-        "phoneNumber",
+        "uid",
+        "email",
         "createdAt",
         "messageCount"
       ]
@@ -70,7 +81,7 @@
   },
   "auth": {
     "providers": [
-      "phone"
+      "google"
     ]
   },
   "firestore": {
@@ -114,3 +125,5 @@
     ]
   }
 }
+
+    

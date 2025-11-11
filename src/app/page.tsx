@@ -41,22 +41,13 @@ import {
   DialogDescription
 } from '@/components/ui/dialog';
 import { useUser, useAuth, useFirestore, useMemoFirebase } from '@/firebase';
-import { RecaptchaVerifier, signInWithPhoneNumber, signOut, ConfirmationResult } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
 import { doc, setDoc, getDoc, serverTimestamp, increment } from 'firebase/firestore';
 
 const formSchema = z.object({
   salesTag: z.string().default('Saudação'),
   nicheDetails: z.string().min(1, 'Escreva sobre seu negócio.'),
 });
-
-const phoneLoginFormSchema = z.object({
-  phoneNumber: z.string().min(10, 'Número de telefone inválido'),
-});
-
-const otpFormSchema = z.object({
-  otp: z.string().min(6, 'Código OTP inválido'),
-});
-
 
 type GeneratedMessage = {
   message: string;
@@ -79,6 +70,17 @@ const salesTags = [
   { value: 'Lembrete de Evento', label: '🔔 Lembrete de Evento' },
   { value: 'Outros', label: '💬 Outros' },
 ];
+
+const GoogleIcon = () => (
+  <svg className="mr-2 h-4 w-4" viewBox="0 0 48 48">
+    <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20s20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z" />
+    <path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C16.318 4 9.656 8.337 6.306 14.691z" />
+    <path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z" />
+t
+    <path fill="#1976D2" d="M43.611 20.083H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571l6.19 5.238C42.015 34.823 44 29.833 44 24c0-1.341-.138-2.65-.389-3.917z" />
+  </svg>
+);
+
 
 const GeneratedMessageCard = ({ message, salesTag, index }: { message: string; salesTag: string; index: number }) => {
   const [isCopied, setIsCopied] = useState(false);
@@ -118,9 +120,7 @@ export default function Home() {
   const [isGenerating, startTransition] = useTransition();
   const [generatedMessages, setGeneratedMessages] = useState<GeneratedMessage[]>([]);
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
-  const [isSendingCode, setIsSendingCode] = useState(false);
-  const [isVerifyingCode, setIsVerifyingCode] = useState(false);
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
 
   const { toast } = useToast();
   const { user, isUserLoading } = useUser();
@@ -137,103 +137,45 @@ export default function Home() {
     },
   });
 
-  const phoneLoginForm = useForm<z.infer<typeof phoneLoginFormSchema>>({
-    resolver: zodResolver(phoneLoginFormSchema),
-    defaultValues: {
-      phoneNumber: '',
-    },
-  });
-
-  const otpForm = useForm<z.infer<typeof otpFormSchema>>({
-    resolver: zodResolver(otpFormSchema),
-    defaultValues: {
-      otp: '',
-    },
-  });
-
-  const setupRecaptcha = () => {
-    if (!auth) return null;
-    
-    // Cleanup previous verifier
-    if ((window as any).recaptchaVerifier) {
-      (window as any).recaptchaVerifier.clear();
+  const handleGoogleSignIn = async () => {
+    if (!auth) {
+      toast({ variant: 'destructive', title: 'Erro', description: 'Serviço de autenticação não disponível.' });
+      return;
     }
-  
-    const recaptchaContainer = document.getElementById('recaptcha-container');
-    if (!recaptchaContainer) return null;
-  
-    const verifier = new RecaptchaVerifier(auth, recaptchaContainer, {
-      'size': 'invisible',
-      'callback': (response: any) => {
-        // reCAPTCHA solved, allow signInWithPhoneNumber.
-      }
-    });
-    return verifier;
-  };
-  
-  const onSendCode = async (values: z.infer<typeof phoneLoginFormSchema>) => {
-    setIsSendingCode(true);
+    setIsAuthLoading(true);
+    const provider = new GoogleAuthProvider();
     try {
-      const verifier = setupRecaptcha();
-      if (!auth || !verifier) {
-        throw new Error('Serviço de autenticação ou reCAPTCHA não está pronto');
-      }
-      (window as any).recaptchaVerifier = verifier;
-      const result = await signInWithPhoneNumber(auth, values.phoneNumber, verifier);
-      setConfirmationResult(result);
-      toast({
-        title: 'Código enviado!',
-        description: 'Enviamos um código de verificação para o seu celular.',
-      });
-    } catch (error: any) {
-      console.error('Error sending code:', error);
-      let description = 'Ocorreu um problema ao enviar o código. Tente novamente.';
-      if (error.code === 'auth/operation-not-allowed') {
-        description = 'A autenticação por telefone não está habilitada no seu projeto Firebase.';
-      } else if (error.code === 'auth/invalid-phone-number') {
-        description = 'O número de telefone fornecido não é válido.';
-      }
-      toast({
-        variant: 'destructive',
-        title: 'Erro ao enviar código',
-        description: description,
-      });
-    } finally {
-      setIsSendingCode(false);
-    }
-  };
-
-  const onVerifyOtp = async (values: z.infer<typeof otpFormSchema>) => {
-    if (!confirmationResult) return;
-    setIsVerifyingCode(true);
-    try {
-      const credential = await confirmationResult.confirm(values.otp);
-      const user = credential.user;
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
       const userDoc = doc(firestore, "users", user.uid);
       const userDocSnap = await getDoc(userDoc);
 
       if (!userDocSnap.exists()) {
-        await setDoc(userDoc, { 
-          phoneNumber: user.phoneNumber,
+        await setDoc(userDoc, {
+          displayName: user.displayName,
+          email: user.email,
+          photoURL: user.photoURL,
           createdAt: serverTimestamp(),
           messageCount: 0
         });
       }
       setShowLoginModal(false);
-      setConfirmationResult(null);
       toast({
         title: 'Login realizado com sucesso!',
-        description: 'Agora você pode gerar suas mensagens.',
+        description: `Bem-vindo(a), ${user.displayName}!`,
       });
     } catch (error: any) {
-      console.error('Error verifying OTP:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Erro ao verificar código',
-        description: 'O código informado é inválido. Tente novamente.',
-      });
+      console.error("Google Sign-In Error:", error);
+      // Handle specific errors
+      if (error.code !== 'auth/popup-closed-by-user') {
+          toast({
+              variant: "destructive",
+              title: "Erro de autenticação",
+              description: "Não foi possível fazer login com o Google. Por favor, tente novamente.",
+          });
+      }
     } finally {
-      setIsVerifyingCode(false);
+      setIsAuthLoading(false);
     }
   };
 
@@ -256,7 +198,6 @@ export default function Home() {
         }
     }
 
-
     startTransition(async () => {
       try {
         const result = await generateWhatsAppMessage({
@@ -264,7 +205,7 @@ export default function Home() {
           nicheDetails: values.nicheDetails,
         });
         setGeneratedMessages(prev => [{ message: result.message, salesTag: values.salesTag }, ...prev]);
-        
+
         if (userDocRef) {
             await setDoc(userDocRef, { messageCount: increment(1) }, { merge: true });
         }
@@ -289,7 +230,6 @@ export default function Home() {
     if (auth) {
       await signOut(auth);
       setGeneratedMessages([]);
-      setConfirmationResult(null);
       toast({
         title: 'Logout realizado',
         description: 'Você foi desconectado com sucesso.',
@@ -298,7 +238,7 @@ export default function Home() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen font-sans bg-white">
+    <div className="flex flex-col min-h-screen font-sans bg-background">
        <header className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
           <h1 className="text-2xl font-bold text-foreground">TextoPronto</h1>
@@ -350,7 +290,7 @@ export default function Home() {
               ))}
           </div>
 
-          <div className="sticky bottom-0 bg-white/80 backdrop-blur-sm py-8 mt-12">
+          <div className="sticky bottom-0 bg-background/80 backdrop-blur-sm py-8 mt-12">
             <Form {...form}>
               <form
                 onSubmit={form.handleSubmit(onSubmit)}
@@ -423,68 +363,24 @@ export default function Home() {
           <p>Produto do Revizap</p>
         </div>
       </footer>
-        <Dialog open={showLoginModal} onOpenChange={(isOpen) => {
-            setShowLoginModal(isOpen);
-            if (!isOpen) {
-              setConfirmationResult(null); // Reset on close
-            }
-        }}>
+        <Dialog open={showLoginModal} onOpenChange={setShowLoginModal}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Cadastro Grátis</DialogTitle>
             <DialogDescription>
-              { !confirmationResult
-                ? 'Insira seu número de WhatsApp para receber um código e começar a usar.'
-                : 'Insira o código que você recebeu por SMS.'
-              }
+              Entre com sua conta do Google para começar a usar.
             </DialogDescription>
           </DialogHeader>
-          { !confirmationResult ? (
-            <Form {...phoneLoginForm}>
-              <form onSubmit={phoneLoginForm.handleSubmit(onSendCode)} className="space-y-4">
-                <FormField
-                  control={phoneLoginForm.control}
-                  name="phoneNumber"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormControl>
-                        <Input placeholder="+55 (DDD) 99999-9999" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <Button type="submit" className="w-full" disabled={isSendingCode}>
-                  {isSendingCode && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Enviar Código
-                </Button>
-              </form>
-            </Form>
-          ) : (
-             <Form {...otpForm}>
-              <form onSubmit={otpForm.handleSubmit(onVerifyOtp)} className="space-y-4">
-                <FormField
-                  control={otpForm.control}
-                  name="otp"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormControl>
-                        <Input placeholder="Seu código de 6 dígitos" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <Button type="submit" className="w-full" disabled={isVerifyingCode}>
-                  {isVerifyingCode && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Verificar e Entrar
-                </Button>
-              </form>
-            </Form>
-          )}
-           <div id="recaptcha-container"></div>
+          <div className="py-4">
+             <Button onClick={handleGoogleSignIn} className="w-full" disabled={isAuthLoading}>
+                {isAuthLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GoogleIcon />}
+                Entrar com Google
+              </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
   );
 }
+
+    
