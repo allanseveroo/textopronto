@@ -24,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2, ArrowUp, Check, Copy, LogOut } from 'lucide-react';
+import { Loader2, ArrowUp, Check, Copy, LogOut, ExternalLink } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   Card,
@@ -120,6 +120,7 @@ export default function Home() {
   const [isGenerating, startTransition] = useTransition();
   const [generatedMessages, setGeneratedMessages] = useState<GeneratedMessage[]>([]);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showLimitModal, setShowLimitModal] = useState(false);
   const [isAuthLoading, setIsAuthLoading] = useState(false);
 
   const { toast } = useToast();
@@ -216,11 +217,7 @@ export default function Home() {
         try {
             const userDocSnap = await getDoc(userDocRef);
             if (userDocSnap.exists() && userDocSnap.data().plan !== 'pro' && userDocSnap.data().messageCount >= 5) {
-                toast({
-                    variant: 'destructive',
-                    title: 'Limite atingido',
-                    description: 'Você atingiu o limite de 5 mensagens do plano gratuito. Faça o upgrade para continuar.',
-                });
+                setShowLimitModal(true);
                 return;
             }
         } catch(e) {
@@ -439,7 +436,7 @@ export default function Home() {
           <p>Produto do Revizap</p>
         </div>
       </footer>
-        <Dialog open={showLoginModal} onOpenChange={setShowLoginModal}>
+      <Dialog open={showLoginModal} onOpenChange={setShowLoginModal}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Cadastro Grátis</DialogTitle>
@@ -455,6 +452,25 @@ export default function Home() {
           </div>
         </DialogContent>
       </Dialog>
+      <Dialog open={showLimitModal} onOpenChange={setShowLimitModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Você atingiu o limite gratuito</DialogTitle>
+            <DialogDescription className="pt-2">
+              Adquira o plano de R$5,00 e tenha acesso ilimitado.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+             <Button asChild className="w-full bg-green-500 hover:bg-green-600">
+                <a href="https://wa.me/5551981936133" target="_blank">
+                  Falar no WhatsApp
+                  <ExternalLink className="ml-2 h-4 w-4" />
+                </a>
+              </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+ 
