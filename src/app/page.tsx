@@ -58,7 +58,7 @@ const GeneratedMessageCard = ({ message, index }: { message: string; index: numb
   };
 
   return (
-    <Card className="text-left max-w-xl w-full mx-auto transition-all duration-500 animate-in fade-in-0 zoom-in-95">
+    <Card className="text-left max-w-xl w-full mx-auto transition-all duration-500 animate-in fade-in-0 zoom-in-95 bg-card shadow-lg">
       <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
         <CardTitle className="font-bold text-lg">Sua Mensagem #{index}</CardTitle>
         <Button variant="ghost" size="sm" onClick={copyToClipboard} className="shrink-0 bg-secondary hover:bg-secondary/80">
@@ -124,18 +124,15 @@ export default function Home() {
 
           <div className="flex-grow space-y-6">
             {generatedMessages.length === 0 && !isGenerating && (
-              <div className="text-center">
-                  <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-                      Crie textos prontos de vendas para WhatsApp
-                  </h2>
-                  <p className="mt-4 text-lg leading-8 text-muted-foreground">
-                      Personalizados para seu negócio.
-                  </p>
+               <div className="text-center">
+                <h2 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
+                  Crie textos prontos de vendas para <span className="text-primary">WhatsApp</span> personalizados para seu negócio.
+                </h2>
               </div>
             )}
             
             {isGenerating && generatedMessages.length === 0 && (
-              <Card className="text-left max-w-xl mx-auto">
+              <Card className="text-left max-w-xl mx-auto bg-card shadow-lg">
                 <CardHeader>
                   <CardTitle className="font-bold text-lg">Gerando sua mensagem...</CardTitle>
                 </CardHeader>
@@ -160,7 +157,7 @@ export default function Home() {
             <Form {...form}>
               <form
                 onSubmit={form.handleSubmit(onSubmit)}
-                className="relative w-full max-w-xl mx-auto rounded-full bg-secondary/50 p-2 shadow-inner"
+                className="relative w-full max-w-xl mx-auto rounded-full bg-secondary p-2 shadow-lg"
               >
                 <div className="flex items-center">
                   <FormField
