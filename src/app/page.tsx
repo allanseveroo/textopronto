@@ -47,6 +47,12 @@ const salesTags = [
   { value: "Contorno de Objeções" },
   { value: "Follow-up" },
   { value: "Promoção" },
+  { value: "Recuperação de Vendas" },
+  { value: "Cobrança" },
+  { value: "Agendamento" },
+  { value: "Pós-venda" },
+  { value: "Pesquisa de Satisfação" },
+  { value: "Outros" },
 ];
 
 const GeneratedMessageCard = ({ message, salesTag, index }: { message: string; salesTag: string; index: number }) => {
