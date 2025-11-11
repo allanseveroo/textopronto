@@ -302,7 +302,7 @@ export default function Home() {
             <Form {...form}>
               <form
                 onSubmit={form.handleSubmit(onSubmit)}
-                className="relative w-full max-w-xl mx-auto rounded-full bg-white p-3 shadow-[0_4px_16px_rgba(0,0,0,0.05)] border"
+                className="relative w-full max-w-xl mx-auto bg-white p-2 shadow-[0_4px_16px_rgba(0,0,0,0.05)] border"
               >
                 <div className="flex items-center">
                   <FormField
@@ -315,7 +315,7 @@ export default function Home() {
                           defaultValue={field.value}
                         >
                           <FormControl>
-                            <SelectTrigger className="bg-neutral-100 rounded-full border-none shadow-sm pr-8 text-neutral-600">
+                            <SelectTrigger className="bg-neutral-100 border-none shadow-sm pr-8 text-neutral-600">
                               <SelectValue />
                             </SelectTrigger>
                           </FormControl>
@@ -358,7 +358,7 @@ export default function Home() {
                   <Button
                     type="submit"
                     size="icon"
-                    className="ml-2 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white flex-shrink-0"
+                    className="ml-2 bg-emerald-500 hover:bg-emerald-600 text-white flex-shrink-0"
                     disabled={isGenerating || isUserLoading}
                   >
                     {isGenerating || isUserLoading ? (
