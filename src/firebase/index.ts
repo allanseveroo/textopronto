@@ -36,14 +36,14 @@ export function getSdks(firebaseApp: FirebaseApp) {
   const firestore = getFirestore(firebaseApp);
   const auth = getAuth(firebaseApp);
   
-  if (process.env.NODE_ENV === 'development') {
-    try {
-        connectFirestoreEmulator(firestore, 'localhost', 8080);
-        connectAuthEmulator(auth, 'http://localhost:9099');
-    } catch (e) {
-        console.warn('Could not connect to Firebase emulators. This is normal if you are not running them.', e);
-    }
-  }
+  // if (process.env.NODE_ENV === 'development') {
+  //   try {
+  //       connectFirestoreEmulator(firestore, 'localhost', 8080);
+  //       connectAuthEmulator(auth, 'http://localhost:9099');
+  //   } catch (e) {
+  //       console.warn('Could not connect to Firebase emulators. This is normal if you are not running them.', e);
+  //   }
+  // }
 
   return {
     firebaseApp,
