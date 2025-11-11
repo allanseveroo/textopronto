@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useTransition, useEffect } from 'react';
@@ -24,6 +25,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription
+} from '@/components/ui/dialog';
 import { Loader2, ArrowUp, Check, Copy, LogOut, ExternalLink } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -32,16 +40,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription
-} from '@/components/ui/dialog';
-import { useUser, useAuth, useFirestore, useMemoFirebase, useCollection } from '@/firebase';
-import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { doc, setDoc, getDoc, serverTimestamp, increment, addDoc, collection, query, orderBy, Timestamp } from 'firebase/firestore';
+import { supabase } from '@/lib/supabase';
 
 const formSchema = z.object({
   salesTag: z.string().default('Saudação'),
@@ -52,7 +51,6 @@ type GeneratedMessage = {
   id?: string;
   message: string;
   salesTag: string;
-  createdAt?: Timestamp;
 };
 
 const salesTags = [
@@ -122,23 +120,23 @@ export default function Home() {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showLimitModal, setShowLimitModal] = useState(false);
   const [isAuthLoading, setIsAuthLoading] = useState(false);
+  const [user, setUser] = useState<any>(null); // Use any for now, or define a User type
 
   const { toast } = useToast();
-  const { user, isUserLoading } = useUser();
-  const auth = useAuth();
-  const firestore = useFirestore();
 
-  const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
-  const messagesQuery = useMemoFirebase(() => user ? query(collection(firestore, 'users', user.uid, 'messages'), orderBy('createdAt', 'desc')) : null, [firestore, user]);
-
-  const { data: savedMessages, isLoading: isLoadingMessages } = useCollection<GeneratedMessage>(messagesQuery);
-  
   useEffect(() => {
-    if (savedMessages) {
-      setGeneratedMessages(savedMessages);
-    }
-  }, [savedMessages]);
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      setUser(session?.user ?? null);
+    });
 
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -149,87 +147,36 @@ export default function Home() {
   });
 
   const handleGoogleSignIn = async () => {
-    if (!auth || !firestore) {
-      toast({ variant: 'destructive', title: 'Erro', description: 'Serviço de autenticação ou banco de dados não disponível.' });
-      return;
-    }
     setIsAuthLoading(true);
-    const provider = new GoogleAuthProvider();
     try {
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-      const userDoc = doc(firestore, "users", user.uid);
-      const userDocSnap = await getDoc(userDoc);
-
-      if (!userDocSnap.exists()) {
-        // Create user document in Firestore
-        await setDoc(userDoc, {
-          uid: user.uid,
-          displayName: user.displayName,
-          email: user.email,
-          photoURL: user.photoURL,
-          createdAt: serverTimestamp(),
-          messageCount: 0,
-          plan: 'free'
-        });
-
-        // Send email to webhook
-        try {
-          await fetch('https://metrizap-n8n.dyrluy.easypanel.host/webhook/332fa78c-f667-4c22-a56a-7e535f161674', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ email: user.email }),
-          });
-        } catch (webhookError) {
-          console.error("Webhook Error:", webhookError);
-          // We don't block the user flow if the webhook fails, just log it.
-        }
-      }
-      setShowLoginModal(false);
-      toast({
-        title: 'Login realizado com sucesso!',
-        description: `Bem-vindo(a), ${user.displayName}!`,
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin,
+        },
       });
-    } catch (error: any) {
-      console.error("Google Sign-In Error:", error);
-      if (error.code !== 'auth/popup-closed-by-user') {
-          toast({
-              variant: "destructive",
-              title: "Erro de autenticação",
-              description: "Não foi possível fazer login com o Google. Por favor, tente novamente.",
-          });
+
+      if (error) {
+        throw error;
       }
+      // No need to set user here, onAuthStateChange will handle it
+      setShowLoginModal(false);
+    } catch (error: any) {
+      console.error("Supabase Google Sign-In Error:", error);
+      toast({
+        variant: "destructive",
+        title: "Erro de autenticação",
+        description: error.message || "Não foi possível fazer login com o Google. Por favor, tente novamente.",
+      });
     } finally {
       setIsAuthLoading(false);
     }
   };
 
-
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if (!user) {
       setShowLoginModal(true);
       return;
-    }
-
-    if (userDocRef) {
-        try {
-            const userDocSnap = await getDoc(userDocRef);
-            if (userDocSnap.exists() && userDocSnap.data().plan !== 'pro' && userDocSnap.data().messageCount >= 5) {
-                setShowLimitModal(true);
-                return;
-            }
-        } catch(e) {
-            console.error("Error checking user message count", e);
-            toast({
-                variant: 'destructive',
-                title: 'Erro ao verificar o limite',
-                description: 'Não foi possível verificar seu limite de mensagens. Tente novamente.',
-            });
-            return;
-        }
-
     }
 
     startTransition(async () => {
@@ -242,19 +189,9 @@ export default function Home() {
         const newMessage: Omit<GeneratedMessage, 'id'> = {
           message: result.message,
           salesTag: values.salesTag,
-          createdAt: serverTimestamp() as Timestamp,
         };
-
-        if (user) {
-          const messagesColRef = collection(firestore, 'users', user.uid, 'messages');
-          await addDoc(messagesColRef, newMessage);
-        }
-
-        // The useCollection hook will update the state, no need for setGeneratedMessages here.
-
-        if (userDocRef) {
-            await setDoc(userDocRef, { messageCount: increment(1) }, { merge: true });
-        }
+        
+        setGeneratedMessages(prev => [newMessage, ...prev]);
 
         form.reset({
           salesTag: values.salesTag,
@@ -273,13 +210,27 @@ export default function Home() {
   }
 
   const handleLogout = async () => {
-    if (auth) {
-      await signOut(auth);
+    setIsAuthLoading(true);
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        throw error;
+      }
+      setUser(null);
       setGeneratedMessages([]);
       toast({
         title: 'Logout realizado',
         description: 'Você foi desconectado com sucesso.',
       });
+    } catch (error: any) {
+      console.error("Supabase Logout Error:", error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao sair",
+        description: error.message || "Não foi possível sair. Por favor, tente novamente.",
+      });
+    } finally {
+      setIsAuthLoading(false);
     }
   };
   
@@ -291,7 +242,7 @@ export default function Home() {
         <div className="flex items-center justify-between h-20">
           <h1 className="text-2xl font-bold text-foreground">TextoPronto</h1>
            {user && (
-            <Button variant="ghost" onClick={handleLogout} disabled={isUserLoading}>
+            <Button variant="ghost" onClick={handleLogout} disabled={isAuthLoading}>
               <LogOut className="mr-2 h-4 w-4" />
               Sair
             </Button>
@@ -301,7 +252,7 @@ export default function Home() {
       <main className="flex-1 flex flex-col items-center px-4 pt-8">
         <div className="w-full max-w-2xl mx-auto flex-1 flex flex-col">
           <div className="flex-grow space-y-6">
-            {messagesToDisplay.length === 0 && !isGenerating && !isLoadingMessages &&(
+            {messagesToDisplay.length === 0 && !isGenerating && (
               <div className="text-center">
                 <h2 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
                   Crie textos prontos de vendas para WhatsApp personalizados para seu negócio.
@@ -309,22 +260,6 @@ export default function Home() {
               </div>
             )}
             
-            {(isLoadingMessages && messagesToDisplay.length === 0) && (
-                 <Card className="text-left max-w-2xl mx-auto bg-card shadow-lg">
-                 <CardHeader>
-                   <CardTitle className="font-bold text-lg">
-                     Carregando suas mensagens...
-                   </CardTitle>
-                 </CardHeader>
-                 <CardContent>
-                   <div className="space-y-3 pt-2">
-                     <div className="bg-muted animate-pulse h-4 w-full rounded-md" />
-                     <div className="bg-muted animate-pulse h-4 w-5/6 rounded-md" />
-                   </div>
-                 </CardContent>
-               </Card>
-            )}
-
             {isGenerating && (
               <Card className="text-left max-w-2xl mx-auto bg-card shadow-lg">
                 <CardHeader>
@@ -416,9 +351,9 @@ export default function Home() {
                     type="submit"
                     size="icon"
                     className="ml-2 bg-emerald-500 hover:bg-emerald-600 text-white flex-shrink-0 rounded-lg"
-                    disabled={isGenerating || isUserLoading}
+                    disabled={isGenerating}
                   >
-                    {isGenerating || isUserLoading ? (
+                    {isGenerating ? (
                       <Loader2 className="h-5 w-5 animate-spin" />
                     ) : (
                       <ArrowUp className="h-5 w-5" />
@@ -473,4 +408,3 @@ export default function Home() {
     </div>
   );
 }
- 
