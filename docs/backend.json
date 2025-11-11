@@ -36,7 +36,8 @@
         },
         "plan": {
           "type": "string",
-          "description": "The user's subscription plan (e.g., 'free', 'pro')."
+          "description": "The user's subscription plan (e.g., 'free', 'pro').",
+          "enum": ["free", "pro"]
         }
       },
       "required": [
