@@ -96,7 +96,7 @@ const GeneratedMessageCard = ({ message, salesTag, index }: { message: string; s
   const tagLabel = salesTags.find(tag => tag.value === salesTag)?.label || salesTag;
 
   return (
-    <Card className="text-left max-w-xl w-full mx-auto transition-all duration-500 animate-in fade-in-0 zoom-in-95 bg-card shadow-lg">
+    <Card className="text-left max-w-2xl w-full mx-auto transition-all duration-500 animate-in fade-in-0 zoom-in-95 bg-card shadow-lg">
       <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
         <CardTitle className="font-bold text-lg">Sua Mensagem #{index} - ({tagLabel})</CardTitle>
         <Button variant="ghost" size="sm" onClick={copyToClipboard} className="shrink-0 bg-secondary hover:bg-secondary/80">
@@ -270,7 +270,7 @@ export default function Home() {
             )}
 
             {isGenerating && generatedMessages.length === 0 && (
-              <Card className="text-left max-w-xl mx-auto bg-card shadow-lg">
+              <Card className="text-left max-w-2xl mx-auto bg-card shadow-lg">
                 <CardHeader>
                   <CardTitle className="font-bold text-lg">
                     Gerando sua mensagem...
