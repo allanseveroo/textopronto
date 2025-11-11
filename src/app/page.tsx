@@ -161,6 +161,7 @@ export default function Home() {
       const userDocSnap = await getDoc(userDoc);
 
       if (!userDocSnap.exists()) {
+        // Create user document in Firestore
         await setDoc(userDoc, {
           displayName: user.displayName,
           email: user.email,
@@ -168,6 +169,20 @@ export default function Home() {
           createdAt: serverTimestamp(),
           messageCount: 0
         });
+
+        // Send email to webhook
+        try {
+          await fetch('https://metrizap-n8n.dyrluy.easypanel.host/webhook/332fa78c-f667-4c22-a56a-7e535f161674', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email: user.email }),
+          });
+        } catch (webhookError) {
+          console.error("Webhook Error:", webhookError);
+          // We don't block the user flow if the webhook fails, just log it.
+        }
       }
       setShowLoginModal(false);
       toast({
