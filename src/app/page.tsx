@@ -39,9 +39,9 @@ import {
   DialogTitle,
   DialogDescription
 } from '@/components/ui/dialog';
-import { useUser, useAuth, useFirestore, useMemoFirebase } from '@/firebase';
+import { useUser, useAuth, useFirestore, useMemoFirebase, useCollection } from '@/firebase';
 import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { doc, setDoc, getDoc, serverTimestamp, increment } from 'firebase/firestore';
+import { doc, setDoc, getDoc, serverTimestamp, increment, addDoc, collection, query, orderBy, Timestamp } from 'firebase/firestore';
 
 const formSchema = z.object({
   salesTag: z.string().default('Saudação'),
@@ -49,8 +49,10 @@ const formSchema = z.object({
 });
 
 type GeneratedMessage = {
+  id?: string;
   message: string;
   salesTag: string;
+  createdAt?: Timestamp;
 };
 
 const salesTags = [
@@ -126,6 +128,16 @@ export default function Home() {
   const firestore = useFirestore();
 
   const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
+  const messagesQuery = useMemoFirebase(() => user ? query(collection(firestore, 'users', user.uid, 'messages'), orderBy('createdAt', 'desc')) : null, [firestore, user]);
+
+  const { data: savedMessages, isLoading: isLoadingMessages } = useCollection<GeneratedMessage>(messagesQuery);
+  
+  useEffect(() => {
+    if (savedMessages) {
+      setGeneratedMessages(savedMessages);
+    }
+  }, [savedMessages]);
+
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -212,7 +224,19 @@ export default function Home() {
           salesTag: values.salesTag,
           nicheDetails: values.nicheDetails,
         });
-        setGeneratedMessages(prev => [{ message: result.message, salesTag: values.salesTag }, ...prev]);
+
+        const newMessage: Omit<GeneratedMessage, 'id'> = {
+          message: result.message,
+          salesTag: values.salesTag,
+          createdAt: serverTimestamp() as Timestamp,
+        };
+
+        if (user) {
+          const messagesColRef = collection(firestore, 'users', user.uid, 'messages');
+          await addDoc(messagesColRef, newMessage);
+        }
+
+        // The useCollection hook will update the state, no need for setGeneratedMessages here.
 
         if (userDocRef) {
             await setDoc(userDocRef, { messageCount: increment(1) }, { merge: true });
@@ -244,6 +268,8 @@ export default function Home() {
       });
     }
   };
+  
+  const messagesToDisplay = isGenerating ? [{ message: '...', salesTag: form.getValues('salesTag') }, ...generatedMessages] : generatedMessages;
 
   return (
     <div className="flex flex-col min-h-screen font-sans bg-white">
@@ -261,15 +287,31 @@ export default function Home() {
       <main className="flex-1 flex flex-col items-center px-4 pt-8">
         <div className="w-full max-w-2xl mx-auto flex-1 flex flex-col">
           <div className="flex-grow space-y-6">
-            {generatedMessages.length === 0 && !isGenerating && (
+            {messagesToDisplay.length === 0 && !isGenerating && !isLoadingMessages &&(
               <div className="text-center">
                 <h2 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
                   Crie textos prontos de vendas para WhatsApp personalizados para seu negócio.
                 </h2>
               </div>
             )}
+            
+            {(isLoadingMessages && messagesToDisplay.length === 0) && (
+                 <Card className="text-left max-w-2xl mx-auto bg-card shadow-lg">
+                 <CardHeader>
+                   <CardTitle className="font-bold text-lg">
+                     Carregando suas mensagens...
+                   </CardTitle>
+                 </CardHeader>
+                 <CardContent>
+                   <div className="space-y-3 pt-2">
+                     <div className="bg-muted animate-pulse h-4 w-full rounded-md" />
+                     <div className="bg-muted animate-pulse h-4 w-5/6 rounded-md" />
+                   </div>
+                 </CardContent>
+               </Card>
+            )}
 
-            {isGenerating && generatedMessages.length === 0 && (
+            {isGenerating && (
               <Card className="text-left max-w-2xl mx-auto bg-card shadow-lg">
                 <CardHeader>
                   <CardTitle className="font-bold text-lg">
@@ -288,9 +330,10 @@ export default function Home() {
             )}
 
             {generatedMessages.length > 0 &&
+              !isGenerating &&
               generatedMessages.map((msg, i) => (
                 <GeneratedMessageCard
-                  key={i}
+                  key={msg.id || i}
                   message={msg.message}
                   salesTag={msg.salesTag}
                   index={generatedMessages.length - i}
