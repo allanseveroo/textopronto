@@ -136,30 +136,18 @@ export default function Home() {
     try {
       const { data, error, status } = await supabase
         .from('profiles')
-        .select('*')
+        .select(`*`)
         .eq('id', user.id)
         .single();
 
       if (error && status !== 406) {
-         // The profile doesn't exist, create it.
-        if (status === 406) {
-          const { data: newProfile, error: insertError } = await supabase
-            .from('profiles')
-            .insert({ id: user.id, plan: 'free', message_count: 0 })
-            .select()
-            .single();
-          
-          if (insertError) throw insertError;
-          if (newProfile) setProfile(newProfile);
-          return;
-        }
         throw error;
       }
-      
+
       if (data) {
         setProfile(data);
       } else {
-        // Handle case where profile is null but no error was thrown
+        // Profile does not exist, create it.
         const { data: newProfile, error: insertError } = await supabase
           .from('profiles')
           .insert({ id: user.id, plan: 'free', message_count: 0 })
@@ -169,7 +157,6 @@ export default function Home() {
         if (insertError) throw insertError;
         if (newProfile) setProfile(newProfile);
       }
-
     } catch (error: any) {
       console.error('Error fetching or creating profile:', error);
       toast({
