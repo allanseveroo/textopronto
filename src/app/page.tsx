@@ -12,6 +12,7 @@ import {
   FormControl,
   FormField,
   FormItem,
+  FormMessage,
 } from "@/components/ui/form";
 import {
   Select,
@@ -21,7 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Loader2, ArrowUp, Check, Copy, MessageSquarePlus } from "lucide-react";
+import { Loader2, ArrowUp, Check, Copy } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   Card,
@@ -57,7 +58,7 @@ const GeneratedMessageCard = ({ message, index }: { message: string; index: numb
   };
 
   return (
-    <Card className="text-left max-w-xl mx-auto transition-all duration-500 animate-in fade-in-0 zoom-in-95">
+    <Card className="text-left max-w-xl w-full mx-auto transition-all duration-500 animate-in fade-in-0 zoom-in-95">
       <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
         <CardTitle className="font-bold text-lg">Sua Mensagem #{index}</CardTitle>
         <Button variant="ghost" size="sm" onClick={copyToClipboard} className="shrink-0 bg-secondary hover:bg-secondary/80">
@@ -119,10 +120,21 @@ export default function Home() {
         </div>
       </header>
       <main className="flex-1 flex flex-col items-center px-4 pt-8">
-        <div className="w-full max-w-2xl mx-auto">
-          
-          <div className="space-y-6">
-            {isGenerating && (
+        <div className="w-full max-w-2xl mx-auto flex-1 flex flex-col">
+
+          <div className="flex-grow space-y-6">
+            {generatedMessages.length === 0 && !isGenerating && (
+              <div className="text-center">
+                  <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+                      Crie textos prontos de vendas para WhatsApp
+                  </h2>
+                  <p className="mt-4 text-lg leading-8 text-muted-foreground">
+                      Personalizados para seu negócio.
+                  </p>
+              </div>
+            )}
+            
+            {isGenerating && generatedMessages.length === 0 && (
               <Card className="text-left max-w-xl mx-auto">
                 <CardHeader>
                   <CardTitle className="font-bold text-lg">Gerando sua mensagem...</CardTitle>
@@ -138,25 +150,10 @@ export default function Home() {
               </Card>
             )}
 
-            {generatedMessages.length > 0 ? (
-               generatedMessages.map((msg, i) => (
+            {generatedMessages.length > 0 &&
+              generatedMessages.map((msg, i) => (
                 <GeneratedMessageCard key={i} message={msg} index={generatedMessages.length - i} />
-              ))
-            ) : !isGenerating && (
-                <Card className="mt-12 text-center max-w-xl mx-auto transition-all duration-500 animate-in fade-in-0 zoom-in-95 border-dashed">
-                    <CardHeader>
-                        <div className="flex justify-center">
-                            <MessageSquarePlus className="h-12 w-12 text-muted-foreground" />
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <CardTitle className="font-bold text-lg">Seus textos aparecerão aqui</CardTitle>
-                        <p className="text-muted-foreground mt-2">
-                            Use o formulário abaixo para gerar sua primeira mensagem.
-                        </p>
-                    </CardContent>
-                </Card>
-            )}
+              ))}
           </div>
 
           <div className="sticky bottom-0 bg-background/80 backdrop-blur-sm py-8 mt-12">
@@ -204,13 +201,14 @@ export default function Home() {
                             {...field}
                           />
                         </FormControl>
+                        <FormMessage />
                       </FormItem>
                     )}
                   />
                   <Button
                     type="submit"
                     size="icon"
-                    className="ml-2 rounded-full bg-green-500 hover:bg-green-600 text-white flex-shrink-0"
+                    className="ml-2 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground flex-shrink-0"
                     disabled={isGenerating}
                   >
                     {isGenerating ? (
