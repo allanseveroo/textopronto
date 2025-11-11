@@ -23,12 +23,14 @@
           "type": "string",
           "description": "Timestamp indicating when the user account was created.",
           "format": "date-time"
+        },
+        "messageCount": {
+          "type": "number",
+          "description": "The number of messages the user has generated."
         }
       },
       "required": [
         "id",
-        "email",
-        "name",
         "createdAt"
       ]
     }

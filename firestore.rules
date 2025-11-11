@@ -41,25 +41,38 @@ service cloud.firestore {
       function isExistingOwner(userId) {
         return isOwner(userId) && resource != null;
       }
+      
+      // Check if the user is creating their own document.
+      function isCreatingOwnDocument(userId) {
+        return isOwner(userId)
+               && request.resource.data.id == userId
+               && request.resource.data.messageCount == 0;
+      }
+      
+      // Check if the user is updating their own message count and not other fields.
+      function isUpdatingOwnMessageCount(userId) {
+         return isExistingOwner(userId)
+                && request.resource.data.keys().hasAll(['messageCount'])
+                && request.resource.data.messageCount is number
+                && request.resource.data.messageCount > resource.data.messageCount
+                && request.resource.data.messageCount <= 5;
+      }
 
 
       // Allow a user to create their own document if the UID matches.
-      allow create: if isOwner(userId)
-                    && request.resource.data.id == userId;
+      allow create: if isCreatingOwnDocument(userId);
 
       // Allow a user to read their own document if the UID matches.
       allow get: if isOwner(userId);
 
-      // Allow a user to list their own documents if the UID matches.
+      // Disallow listing documents.
       allow list: if false;
 
-      // Allow a user to update their own document if the UID matches and the document exists,
-      // and prevent changing the user ID.
-      allow update: if isExistingOwner(userId)
-                    && request.resource.data.id == resource.data.id;
+      // Allow a user to update their own message count.
+      allow update: if isUpdatingOwnMessageCount(userId);
 
-      // Allow a user to delete their own document if the UID matches and the document exists.
-      allow delete: if isExistingOwner(userId);
+      // Disallow deleting user documents.
+      allow delete: if false;
     }
   }
 }

@@ -1,43 +1,64 @@
-"use client";
 
-import { useState, useTransition, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
-import { generateWhatsAppMessage } from "@/ai/flows/generate-whatsapp-message";
+'use client';
 
-import { Button } from "@/components/ui/button";
+import { useState, useTransition, useEffect, useCallback } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import {
+  generateWhatsAppMessage,
+} from '@/ai/flows/generate-whatsapp-message';
+
+import { Button } from '@/components/ui/button';
 import {
   Form,
   FormControl,
   FormField,
   FormItem,
   FormMessage,
-} from "@/components/ui/form";
+} from '@/components/ui/form';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { Loader2, ArrowUp, Check, Copy, LogOut } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+} from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Loader2, ArrowUp, Check, Copy, LogOut } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { useAuth, useUser } from "@/firebase";
-import { signOut } from "firebase/auth";
+  CardDescription
+} from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import { useAuth, useUser, useFirestore } from '@/firebase';
+import { signOut, RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from 'firebase/auth';
+import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+
 
 const formSchema = z.object({
-  salesTag: z.string().default("Saudação"),
-  nicheDetails: z.string().min(1, "Escreva sobre seu negócio."),
+  salesTag: z.string().default('Saudação'),
+  nicheDetails: z.string().min(1, 'Escreva sobre seu negócio.'),
 });
+
+const phoneSchema = z.object({
+  phoneNumber: z.string().min(10, 'Número de telefone inválido.'),
+});
+
+const codeSchema = z.object({
+  code: z.string().length(6, 'O código deve ter 6 dígitos.'),
+});
+
 
 type GeneratedMessage = {
   message: string;
@@ -69,7 +90,7 @@ const GeneratedMessageCard = ({ message, salesTag, index }: { message: string; s
     navigator.clipboard.writeText(message);
     setIsCopied(true);
     toast({
-      description: "A mensagem foi copiada para a área de transferência.",
+      description: 'A mensagem foi copiada para a área de transferência.',
     });
     setTimeout(() => setIsCopied(false), 3000);
   };
@@ -98,26 +119,141 @@ const GeneratedMessageCard = ({ message, salesTag, index }: { message: string; s
 export default function Home() {
   const [isGenerating, startTransition] = useTransition();
   const [generatedMessages, setGeneratedMessages] = useState<GeneratedMessage[]>([]);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [messageCount, setMessageCount] = useState(0);
   const { toast } = useToast();
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
-  const router = useRouter();
+  const firestore = useFirestore();
+
+  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
+  const [isSendingCode, setIsSendingCode] = useState(false);
+  const [isVerifyingCode, setIsVerifyingCode] = useState(false);
+
+  const phoneForm = useForm<z.infer<typeof phoneSchema>>({
+    resolver: zodResolver(phoneSchema),
+  });
+
+  const codeForm = useForm<z.infer<typeof codeSchema>>({
+    resolver: zodResolver(codeSchema),
+  });
+
+  const fetchMessageCount = useCallback(async (uid: string) => {
+    if (!firestore) return;
+    const userDocRef = doc(firestore, 'users', uid);
+    const userDoc = await getDoc(userDocRef);
+    if (userDoc.exists()) {
+      setMessageCount(userDoc.data().messageCount || 0);
+    }
+  }, [firestore]);
+
 
   useEffect(() => {
-    if (!isUserLoading && !user) {
-      router.push('/login');
+    if (user) {
+      fetchMessageCount(user.uid);
     }
-  }, [user, isUserLoading, router]);
+  }, [user, fetchMessageCount]);
+
+
+  useEffect(() => {
+    if (!auth || !showLoginModal) return;
+    window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+      'size': 'invisible',
+      'callback': (response: any) => {
+        // reCAPTCHA solved, allow signInWithPhoneNumber.
+      }
+    });
+    return () => {
+      if (window.recaptchaVerifier) {
+        window.recaptchaVerifier.clear();
+      }
+    }
+  }, [auth, showLoginModal]);
+
+  const onSendCode = async (values: z.infer<typeof phoneSchema>) => {
+    setIsSendingCode(true);
+    try {
+      const verifier = window.recaptchaVerifier;
+      const result = await signInWithPhoneNumber(auth, values.phoneNumber, verifier);
+      setConfirmationResult(result);
+      toast({
+        title: 'Código enviado!',
+        description: 'Enviamos um código de verificação para o seu celular.',
+      });
+    } catch (error: any) {
+      console.error(error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao enviar código',
+        description: error.message || 'Não foi possível enviar o código. Tente novamente.',
+      });
+    } finally {
+      setIsSendingCode(false);
+    }
+  };
+
+  const onVerifyCode = async (values: z.infer<typeof codeSchema>) => {
+    if (!confirmationResult) return;
+    setIsVerifyingCode(true);
+    try {
+      const credential = await confirmationResult.confirm(values.code);
+      const newUser = credential.user;
+
+      if (firestore && newUser) {
+        const userDocRef = doc(firestore, 'users', newUser.uid);
+        const userDoc = await getDoc(userDocRef);
+        if (!userDoc.exists()) {
+          await setDoc(userDocRef, {
+            id: newUser.uid,
+            email: newUser.email,
+            name: newUser.displayName,
+            createdAt: serverTimestamp(),
+            messageCount: 0,
+          });
+        }
+      }
+
+      toast({
+        title: 'Login realizado com sucesso!',
+      });
+      setShowLoginModal(false);
+    } catch (error: any) {
+      console.error(error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro na verificação',
+        description: 'O código inserido é inválido. Tente novamente.',
+      });
+    } finally {
+      setIsVerifyingCode(false);
+    }
+  };
+
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      salesTag: "Saudação",
-      nicheDetails: "",
+      salesTag: 'Saudação',
+      nicheDetails: '',
     },
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
+    if (!user) {
+      setShowLoginModal(true);
+      return;
+    }
+    
+    if(messageCount >= 5) {
+      toast({
+        variant: "destructive",
+        title: "Limite de mensagens atingido",
+        description: "Você já gerou 5 mensagens gratuitas. Faça upgrade para continuar.",
+      });
+      return;
+    }
+
+
     startTransition(async () => {
       try {
         const result = await generateWhatsAppMessage({
@@ -125,61 +261,67 @@ export default function Home() {
           nicheDetails: values.nicheDetails,
         });
         setGeneratedMessages(prev => [{ message: result.message, salesTag: values.salesTag }, ...prev]);
+        
+        if (firestore && user) {
+          const newCount = messageCount + 1;
+          const userDocRef = doc(firestore, 'users', user.uid);
+          await setDoc(userDocRef, { messageCount: newCount }, { merge: true });
+          setMessageCount(newCount);
+        }
+
         form.reset({
           salesTag: values.salesTag,
-          nicheDetails: "",
+          nicheDetails: '',
         });
       } catch (error) {
-        console.error("Failed to generate message:", error);
+        console.error('Failed to generate message:', error);
         toast({
-          variant: "destructive",
-          title: "Erro ao gerar mensagem",
-          description: "Ocorreu um problema com a IA. Por favor, tente novamente.",
+          variant: 'destructive',
+          title: 'Erro ao gerar mensagem',
+          description:
+            'Ocorreu um problema com a IA. Por favor, tente novamente.',
         });
       }
     });
   }
 
   const handleLogout = async () => {
+    if (!auth) return;
     await signOut(auth);
-    router.push('/login');
+    setGeneratedMessages([]);
+    setMessageCount(0);
   };
-
-  if (isUserLoading || !user) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <Loader2 className="h-10 w-10 animate-spin" />
-      </div>
-    );
-  }
-
+  
   return (
     <div className="flex flex-col min-h-screen bg-background font-sans">
-      <header className="container mx-auto px-4 sm:px-6 lg:px-8">
+       <header className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
           <h1 className="text-2xl font-bold text-foreground">TextoPronto</h1>
-          <Button variant="ghost" onClick={handleLogout}>
-            <LogOut className="mr-2 h-4 w-4" />
-            Sair
-          </Button>
+          {user && (
+            <Button variant="ghost" onClick={handleLogout}>
+              <LogOut className="mr-2 h-4 w-4" />
+              Sair
+            </Button>
+          )}
         </div>
       </header>
       <main className="flex-1 flex flex-col items-center px-4 pt-8">
         <div className="w-full max-w-2xl mx-auto flex-1 flex flex-col">
-
           <div className="flex-grow space-y-6">
             {generatedMessages.length === 0 && !isGenerating && (
-               <div className="text-center">
+              <div className="text-center">
                 <h2 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
                   Crie textos prontos de vendas para WhatsApp personalizados para seu negócio.
                 </h2>
               </div>
             )}
-            
+
             {isGenerating && generatedMessages.length === 0 && (
               <Card className="text-left max-w-xl mx-auto bg-card shadow-lg">
                 <CardHeader>
-                  <CardTitle className="font-bold text-lg">Gerando sua mensagem...</CardTitle>
+                  <CardTitle className="font-bold text-lg">
+                    Gerando sua mensagem...
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3 pt-2">
@@ -194,7 +336,12 @@ export default function Home() {
 
             {generatedMessages.length > 0 &&
               generatedMessages.map((msg, i) => (
-                <GeneratedMessageCard key={i} message={msg.message} salesTag={msg.salesTag} index={generatedMessages.length - i} />
+                <GeneratedMessageCard
+                  key={i}
+                  message={msg.message}
+                  salesTag={msg.salesTag}
+                  index={generatedMessages.length - i}
+                />
               ))}
           </div>
 
@@ -220,7 +367,7 @@ export default function Home() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {salesTags.map((tag) => (
+                            {salesTags.map(tag => (
                               <SelectItem key={tag.value} value={tag.value}>
                                 {tag.label}
                               </SelectItem>
@@ -264,7 +411,6 @@ export default function Home() {
               </form>
             </Form>
           </div>
-
         </div>
       </main>
       <footer className="py-8">
@@ -272,6 +418,78 @@ export default function Home() {
           <p>Produto do Revizap</p>
         </div>
       </footer>
+      <Dialog open={showLoginModal} onOpenChange={setShowLoginModal}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="text-2xl">Cadastre-se Grátis</DialogTitle>
+            <DialogDescription>
+              {confirmationResult
+                ? 'Digite o código que enviamos para o seu WhatsApp.'
+                : 'Insira seu número de WhatsApp para gerar até 5 mensagens grátis.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+          {!confirmationResult ? (
+            <Form {...phoneForm}>
+              <form onSubmit={phoneForm.handleSubmit(onSendCode)} className="space-y-4">
+                <FormField
+                  control={phoneForm.control}
+                  name="phoneNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Número de WhatsApp</FormLabel>
+                      <FormControl>
+                        <Input placeholder="+55 (XX) XXXXX-XXXX" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button type="submit" className="w-full" disabled={isSendingCode}>
+                  {isSendingCode && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Enviar Código
+                </Button>
+              </form>
+            </Form>
+          ) : (
+            <Form {...codeForm}>
+              <form onSubmit={codeForm.handleSubmit(onVerifyCode)} className="space-y-4">
+                <FormField
+                  control={codeForm.control}
+                  name="code"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Código de Verificação</FormLabel>
+                      <FormControl>
+                        <Input placeholder="123456" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button type="submit" className="w-full" disabled={isVerifyingCode}>
+                  {isVerifyingCode && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Verificar e Entrar
+                </Button>
+                 <Button variant="link" size="sm" onClick={() => setConfirmationResult(null)}>
+                    Usar outro número
+                  </Button>
+              </form>
+            </Form>
+          )}
+          </div>
+          <div id="recaptcha-container" className="flex justify-center"></div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+
+
+declare global {
+  interface Window {
+    recaptchaVerifier: RecaptchaVerifier;
+  }
+}
+
+    
