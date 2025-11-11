@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useTransition, useEffect } from 'react';
+import { useState, useTransition, useEffect, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -41,6 +41,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { supabase } from '@/lib/supabase';
+import type { User } from '@supabase/supabase-js';
 
 const formSchema = z.object({
   salesTag: z.string().default('Saudação'),
@@ -51,6 +52,12 @@ type GeneratedMessage = {
   id?: string;
   message: string;
   salesTag: string;
+};
+
+type UserProfile = {
+  id: string;
+  plan: 'free' | 'pro';
+  message_count: number;
 };
 
 const salesTags = [
@@ -119,24 +126,74 @@ export default function Home() {
   const [generatedMessages, setGeneratedMessages] = useState<GeneratedMessage[]>([]);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showLimitModal, setShowLimitModal] = useState(false);
-  const [isAuthLoading, setIsAuthLoading] = useState(false);
-  const [user, setUser] = useState<any>(null); // Use any for now, or define a User type
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+
 
   const { toast } = useToast();
 
+  const getProfile = useCallback(async (user: User) => {
+    try {
+      const { data, error, status } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      if (error && status !== 406) {
+        throw error;
+      }
+
+      if (data) {
+        setProfile(data);
+      } else {
+        // Profile doesn't exist, create it.
+        const { error: insertError } = await supabase.from('profiles').insert([
+          { id: user.id },
+        ]);
+
+        if (insertError) {
+          throw insertError;
+        }
+        // Fetch the newly created profile
+        await getProfile(user);
+      }
+    } catch (error: any) {
+      console.error('Error fetching or creating profile:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao carregar perfil',
+        description: error.message,
+      });
+    }
+  }, [toast]);
+
   useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setUser(session?.user ?? null);
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+      if (currentUser) {
+        await getProfile(currentUser);
+      } else {
+        setProfile(null);
+      }
+      setIsAuthLoading(false);
     });
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+      if (currentUser) {
+        await getProfile(currentUser);
+      }
+      setIsAuthLoading(false);
     });
 
     return () => {
       authListener.subscription.unsubscribe();
     };
-  }, []);
+  }, [getProfile]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -159,8 +216,6 @@ export default function Home() {
       if (error) {
         throw error;
       }
-      // No need to set user here, onAuthStateChange will handle it
-      setShowLoginModal(false);
     } catch (error: any) {
       console.error("Supabase Google Sign-In Error:", error);
       toast({
@@ -169,13 +224,27 @@ export default function Home() {
         description: error.message || "Não foi possível fazer login com o Google. Por favor, tente novamente.",
       });
     } finally {
-      setIsAuthLoading(false);
+      // Don't set auth loading to false here, onAuthStateChange will handle it.
     }
   };
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if (!user) {
       setShowLoginModal(true);
+      return;
+    }
+    
+    if (!profile) {
+      toast({
+        variant: 'destructive',
+        title: 'Perfil não carregado',
+        description: 'Por favor, aguarde seu perfil carregar e tente novamente.',
+      });
+      return;
+    }
+
+    if (profile.plan === 'free' && profile.message_count >= 5) {
+      setShowLimitModal(true);
       return;
     }
 
@@ -193,17 +262,28 @@ export default function Home() {
         
         setGeneratedMessages(prev => [newMessage, ...prev]);
 
+        // Increment message count
+        const newCount = profile.message_count + 1;
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ message_count: newCount })
+          .eq('id', user.id);
+        
+        if (updateError) throw updateError;
+
+        setProfile(p => p ? { ...p, message_count: newCount } : null);
+
         form.reset({
           salesTag: values.salesTag,
           nicheDetails: '',
         });
-      } catch (error) {
-        console.error('Failed to generate message:', error);
+      } catch (error: any) {
+        console.error('Failed to generate or update message count:', error);
         toast({
           variant: 'destructive',
-          title: 'Erro ao gerar mensagem',
+          title: 'Erro',
           description:
-            'Ocorreu um problema com a IA. Por favor, tente novamente.',
+            error.message || 'Ocorreu um problema com a IA ou ao salvar seu progresso. Por favor, tente novamente.',
         });
       }
     });
@@ -217,6 +297,7 @@ export default function Home() {
         throw error;
       }
       setUser(null);
+      setProfile(null);
       setGeneratedMessages([]);
       toast({
         title: 'Logout realizado',
@@ -254,9 +335,13 @@ export default function Home() {
           <div className="flex-grow space-y-6">
             {messagesToDisplay.length === 0 && !isGenerating && (
               <div className="text-center">
-                <h2 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
-                  Crie textos prontos de vendas para WhatsApp personalizados para seu negócio.
-                </h2>
+                 {isAuthLoading ? (
+                  <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
+                ) : (
+                  <h2 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
+                    Crie textos prontos de vendas para WhatsApp personalizados para seu negócio.
+                  </h2>
+                )}
               </div>
             )}
             
@@ -351,7 +436,7 @@ export default function Home() {
                     type="submit"
                     size="icon"
                     className="ml-2 bg-emerald-500 hover:bg-emerald-600 text-white flex-shrink-0 rounded-lg"
-                    disabled={isGenerating}
+                    disabled={isGenerating || isAuthLoading}
                   >
                     {isGenerating ? (
                       <Loader2 className="h-5 w-5 animate-spin" />
@@ -408,3 +493,5 @@ export default function Home() {
     </div>
   );
 }
+
+    
