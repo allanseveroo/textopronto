@@ -147,7 +147,6 @@ export default function Home() {
       if (data) {
         setProfile(data);
       } else {
-        // Profile does not exist, create it.
         const { data: newProfile, error: insertError } = await supabase
           .from('profiles')
           .insert({ id: user.id, plan: 'free', message_count: 0 })
@@ -190,44 +189,29 @@ export default function Home() {
   }, [toast]);
 
   useEffect(() => {
-    const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      const currentUser = session?.user ?? null;
-      setUser(currentUser);
+    setIsAuthLoading(true);
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        const currentUser = session?.user ?? null;
+        setUser(currentUser);
 
-      if (currentUser) {
-        await Promise.all([
-          getProfile(currentUser),
-          getMessages(currentUser)
-        ]);
+        if (currentUser) {
+          setShowLoginModal(false);
+          await Promise.all([getProfile(currentUser), getMessages(currentUser)]);
+        } else {
+          setProfile(null);
+          setGeneratedMessages([]);
+        }
+        
+        setIsAuthLoading(false);
       }
-      setIsAuthLoading(false);
-    };
-
-    checkUser();
-
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      const currentUser = session?.user ?? null;
-      setUser(currentUser);
-      
-      if (event === 'SIGNED_IN' && currentUser) {
-        setShowLoginModal(false);
-        setIsAuthLoading(true);
-        await Promise.all([
-            getProfile(currentUser),
-            getMessages(currentUser)
-        ]);
-      } else if (event === 'SIGNED_OUT') {
-        setProfile(null);
-        setGeneratedMessages([]);
-      }
-      setIsAuthLoading(false);
-    });
+    );
 
     return () => {
       authListener.subscription.unsubscribe();
     };
   }, [getProfile, getMessages]);
+
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -247,8 +231,9 @@ export default function Home() {
         },
       });
 
-      if (error) throw error;
-
+      if (error) {
+        throw error;
+      }
     } catch (error: any) {
       console.error("Supabase Google Sign-In Error:", error);
       toast({
@@ -256,7 +241,7 @@ export default function Home() {
         title: "Erro de autenticação",
         description: error.message || "Não foi possível fazer login com o Google. Por favor, tente novamente.",
       });
-      setIsAuthLoading(false); // Stop loading on error
+      setIsAuthLoading(false);
     }
   };
 
@@ -302,7 +287,6 @@ export default function Home() {
 
         setGeneratedMessages(prev => [newMessage, ...prev]);
 
-        // Increment message count
         const newCount = (profile.message_count || 0) + 1;
         const { error: updateError } = await supabase
           .from('profiles')
@@ -337,7 +321,6 @@ export default function Home() {
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
-      // State will be cleared by onAuthStateChange listener
       toast({
         title: 'Logout realizado',
         description: 'Você foi desconectado com sucesso.',
@@ -530,4 +513,5 @@ export default function Home() {
       </Dialog>
     </div>
   );
-}
+
+    
