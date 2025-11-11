@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useTransition, useEffect } from 'react';
+import { useState, useTransition, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -11,6 +11,13 @@ import {
 import TextareaAutosize from 'react-textarea-autosize';
 
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import {
   Form,
   FormControl,
@@ -35,7 +42,10 @@ import {
 } from '@/components/ui/card';
 import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, increment, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, increment } from 'firebase/firestore';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
+
 
 const formSchema = z.object({
   salesTag: z.string().default('Saudação'),
@@ -104,6 +114,8 @@ const GeneratedMessageCard = ({ message, salesTag, index }: { message: string; s
 export default function Home() {
   const [isGenerating, startTransition] = useTransition();
   const [generatedMessages, setGeneratedMessages] = useState<GeneratedMessage[]>([]);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const formValuesRef = useRef<z.infer<typeof formSchema> | null>(null);
   
   const auth = useAuth();
   const firestore = useFirestore();
@@ -117,41 +129,49 @@ export default function Home() {
 
   const { data: userProfile, isLoading: isProfileLoading } = useDoc(userProfileRef);
 
-  useEffect(() => {
-    if (user && firestore && !isProfileLoading && !userProfile) {
-      const manageUserProfile = async () => {
-        if (!user.email) return;
+  const manageUserProfile = async () => {
+    if (!user || !firestore) return;
 
-        const docRef = doc(firestore, 'users', user.uid);
-        const docSnap = await getDoc(docRef);
+    if (!isProfileLoading && !userProfile) {
+      if (!user.email) return;
 
-        if (!docSnap.exists()) {
-          try {
-            await setDoc(docRef, {
+      const docRef = doc(firestore, 'users', user.uid);
+      const docSnap = await getDoc(docRef);
+
+      if (!docSnap.exists()) {
+        try {
+          await setDoc(docRef, {
+            userId: user.uid,
+            email: user.email,
+            plan: 'free',
+            messageCount: 0,
+          });
+        } catch (error) {
+          const contextualError = new FirestorePermissionError({
+            operation: 'create',
+            path: docRef.path,
+            requestResourceData: {
               userId: user.uid,
               email: user.email,
               plan: 'free',
               messageCount: 0,
-            });
-          } catch (error) {
-            console.error("Error creating user profile:", error);
-            toast({
-              variant: "destructive",
-              title: "Erro ao criar perfil",
-              description: "Não foi possível criar seu perfil de usuário. Tente novamente."
-            });
-          }
+            }
+          });
+          errorEmitter.emit('permission-error', contextualError);
         }
-      };
-      manageUserProfile();
+      }
     }
-  }, [user, firestore, userProfile, isProfileLoading, toast]);
+  };
 
+  useEffect(() => {
+    manageUserProfile();
+  }, [user, firestore, userProfile, isProfileLoading]);
 
   const handleSignIn = async () => {
     const provider = new GoogleAuthProvider();
     try {
       await signInWithPopup(auth, provider);
+      setIsLoginModalOpen(false); // Fecha o modal no sucesso
     } catch (error) {
       console.error("Error signing in with Google", error);
       toast({
@@ -162,20 +182,6 @@ export default function Home() {
     }
   };
 
-  const handleSignOut = async () => {
-    try {
-      await signOut(auth);
-      setGeneratedMessages([]);
-    } catch (error) {
-      console.error("Error signing out", error);
-      toast({
-        variant: 'destructive',
-        title: 'Erro ao Sair',
-        description: 'Ocorreu um problema ao tentar sair. Tente novamente.',
-      });
-    }
-  };
-  
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -184,13 +190,10 @@ export default function Home() {
     },
   });
 
-  async function onSubmit(values: z.infer<typeof formSchema>) {
-    if (!user) {
-      toast({
-        variant: 'destructive',
-        title: 'Acesso Negado',
-        description: 'Você precisa estar logado para gerar mensagens.',
-      });
+  const runGeneration = async (values: z.infer<typeof formSchema>) => {
+    if (!user || !userProfileRef) {
+      // Este caso não deveria acontecer se a lógica estiver correta
+      toast({ variant: 'destructive', title: 'Erro', description: 'Usuário não encontrado.' });
       return;
     }
 
@@ -218,62 +221,67 @@ export default function Home() {
 
         setGeneratedMessages(prev => [newMessage, ...prev]);
 
-        // Increment message count in Firestore
-        if (userProfileRef) {
-          await updateDoc(userProfileRef, {
-            messageCount: increment(1)
+        // Incrementa a contagem de mensagens
+        await updateDoc(userProfileRef, {
+          messageCount: increment(1)
+        }).catch(error => {
+          const contextualError = new FirestorePermissionError({
+            operation: 'update',
+            path: userProfileRef.path,
+            requestResourceData: { messageCount: 'increment(1)' }
           });
-        }
+          errorEmitter.emit('permission-error', contextualError);
+        });
 
         form.reset({
           salesTag: values.salesTag,
           nicheDetails: '',
         });
 
-      } catch (error: any)
-      {
+      } catch (error: any) {
         console.error('Failed to generate message:', error);
         toast({
           variant: 'destructive',
           title: 'Erro',
-          description:
-            error.message || 'Ocorreu um problema com a IA. Por favor, tente novamente.',
+          description: error.message || 'Ocorreu um problema com a IA. Por favor, tente novamente.',
         });
       }
     });
+  };
+
+  useEffect(() => {
+    // Se o usuário fez login e havia uma ação pendente, executa a ação.
+    if (user && formValuesRef.current && isLoginModalOpen === false) {
+      runGeneration(formValuesRef.current);
+      formValuesRef.current = null; // Limpa a ação pendente
+    }
+  }, [user, isLoginModalOpen]);
+
+
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    if (!user) {
+      formValuesRef.current = values; // Guarda os valores do formulário
+      setIsLoginModalOpen(true);
+      return;
+    }
+    runGeneration(values);
   }
 
-  const renderAuthSection = () => {
-    if (isUserLoading) {
-      return <Loader2 className="h-6 w-6 animate-spin" />;
-    }
-
-    if (user) {
-      return (
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-foreground/80 hidden sm:inline">Olá, {user.displayName || user.email}</span>
-          <Button variant="outline" size="sm" onClick={handleSignOut}>
-            <LogOut className="h-4 w-4 sm:mr-2" />
-            <span className="hidden sm:inline">Sair</span>
-          </Button>
-        </div>
-      );
-    }
-
-    return (
-      <Button onClick={handleSignIn} disabled={isUserLoading}>
-        <LogIn className="mr-2 h-4 w-4" />
-        Entrar com Google
-      </Button>
-    );
-  };
 
   return (
     <div className="flex flex-col min-h-screen font-sans bg-white">
        <header className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
           <h1 className="text-2xl font-bold text-foreground">TextoPronto</h1>
-          {renderAuthSection()}
+           {user && (
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-foreground/80 hidden sm:inline">Olá, {user.displayName || user.email}</span>
+              <Button variant="outline" size="sm" onClick={() => signOut(auth)}>
+                <LogOut className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Sair</span>
+              </Button>
+            </div>
+           )}
         </div>
       </header>
       <main className="flex-1 flex flex-col items-center px-4 pt-8">
@@ -382,7 +390,7 @@ export default function Home() {
                     type="submit"
                     size="icon"
                     className="ml-2 bg-emerald-500 hover:bg-emerald-600 text-white flex-shrink-0 rounded-lg"
-                    disabled={isGenerating || isProfileLoading}
+                    disabled={isGenerating || isProfileLoading || isUserLoading}
                   >
                     {isGenerating ? (
                       <Loader2 className="h-5 w-5 animate-spin" />
@@ -397,6 +405,23 @@ export default function Home() {
           </div>
         </div>
       </main>
+
+       <Dialog open={isLoginModalOpen} onOpenChange={setIsLoginModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold">Faça login para continuar</DialogTitle>
+            <DialogDescription>
+              Para gerar sua mensagem personalizada, você precisa entrar com sua conta Google.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center justify-center pt-4">
+            <Button onClick={handleSignIn} className="w-full">
+              <LogIn className="mr-2 h-4 w-4" />
+              Entrar com Google
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       <footer className="py-8">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 text-center text-sm text-neutral-500">
           <p>Produto do Revizap</p>
@@ -404,4 +429,5 @@ export default function Home() {
       </footer>
     </div>
   );
-}
+
+    
