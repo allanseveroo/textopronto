@@ -105,7 +105,7 @@ const GeneratedMessageCard = ({ message, salesTag, index }: { message: string; s
         </Button>
       </CardHeader>
       <CardContent>
-        <p className="whitespace-pre-wrap text-foreground/90 leading-relaxed pt-2">
+        <p className="whitespace-normal break-words text-foreground/90 leading-relaxed pt-2">
           {message}
         </p>
       </CardContent>
