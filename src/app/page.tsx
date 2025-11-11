@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useTransition, useEffect, useCallback } from 'react';
@@ -49,9 +48,11 @@ const formSchema = z.object({
 });
 
 type GeneratedMessage = {
-  id?: string;
+  id: number;
+  created_at: string;
   message: string;
-  salesTag: string;
+  sales_tag: string;
+  user_id: string;
 };
 
 type UserProfile = {
@@ -85,7 +86,6 @@ const GoogleIcon = () => (
     <path fill="#1976D2" d="M43.611 20.083H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571l6.19 5.238C42.015 34.823 44 29.833 44 24c0-1.341-.138-2.65-.389-3.917z" />
   </svg>
 );
-
 
 const GeneratedMessageCard = ({ message, salesTag, index }: { message: string; salesTag: string; index: number }) => {
   const [isCopied, setIsCopied] = useState(false);
@@ -130,7 +130,6 @@ export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
 
-
   const { toast } = useToast();
 
   const getProfile = useCallback(async (user: User) => {
@@ -142,23 +141,35 @@ export default function Home() {
         .single();
 
       if (error && status !== 406) {
+         // The profile doesn't exist, create it.
+        if (status === 406) {
+          const { data: newProfile, error: insertError } = await supabase
+            .from('profiles')
+            .insert({ id: user.id, plan: 'free', message_count: 0 })
+            .select()
+            .single();
+          
+          if (insertError) throw insertError;
+          if (newProfile) setProfile(newProfile);
+          return;
+        }
         throw error;
       }
-
+      
       if (data) {
         setProfile(data);
       } else {
-        // Profile doesn't exist, create it.
-        const { error: insertError } = await supabase.from('profiles').insert([
-          { id: user.id },
-        ]);
-
-        if (insertError) {
-          throw insertError;
-        }
-        // Fetch the newly created profile
-        await getProfile(user);
+        // Handle case where profile is null but no error was thrown
+        const { data: newProfile, error: insertError } = await supabase
+          .from('profiles')
+          .insert({ id: user.id, plan: 'free', message_count: 0 })
+          .select()
+          .single();
+        
+        if (insertError) throw insertError;
+        if (newProfile) setProfile(newProfile);
       }
+
     } catch (error: any) {
       console.error('Error fetching or creating profile:', error);
       toast({
@@ -169,31 +180,67 @@ export default function Home() {
     }
   }, [toast]);
 
+  const getMessages = useCallback(async (user: User) => {
+    try {
+      const { data, error } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      if (data) setGeneratedMessages(data);
+
+    } catch (error: any) {
+      console.error('Error fetching messages:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao carregar mensagens',
+        description: error.message,
+      });
+    }
+  }, [toast]);
+
   useEffect(() => {
+    const checkUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+
+      if (currentUser) {
+        await Promise.all([
+          getProfile(currentUser),
+          getMessages(currentUser)
+        ]);
+      }
+      setIsAuthLoading(false);
+    };
+
+    checkUser();
+
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       const currentUser = session?.user ?? null;
       setUser(currentUser);
-      if (currentUser) {
-        await getProfile(currentUser);
-      } else {
-        setProfile(null);
-      }
-      setIsAuthLoading(false);
-    });
+      setProfile(null);
+      setGeneratedMessages([]);
 
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      const currentUser = session?.user ?? null;
-      setUser(currentUser);
       if (currentUser) {
-        await getProfile(currentUser);
+        setIsAuthLoading(true);
+        await Promise.all([
+          getProfile(currentUser),
+          getMessages(currentUser)
+        ]);
+        setIsAuthLoading(false);
+      } else {
+        setIsAuthLoading(false);
       }
-      setIsAuthLoading(false);
     });
 
     return () => {
       authListener.subscription.unsubscribe();
     };
-  }, [getProfile]);
+  }, [getProfile, getMessages]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -213,9 +260,8 @@ export default function Home() {
         },
       });
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
+
     } catch (error: any) {
       console.error("Supabase Google Sign-In Error:", error);
       toast({
@@ -223,8 +269,7 @@ export default function Home() {
         title: "Erro de autenticação",
         description: error.message || "Não foi possível fazer login com o Google. Por favor, tente novamente.",
       });
-    } finally {
-      // Don't set auth loading to false here, onAuthStateChange will handle it.
+      setIsAuthLoading(false); // Stop loading on error
     }
   };
 
@@ -238,7 +283,7 @@ export default function Home() {
       toast({
         variant: 'destructive',
         title: 'Perfil não carregado',
-        description: 'Por favor, aguarde seu perfil carregar e tente novamente.',
+        description: 'Seu perfil ainda está carregando. Por favor, tente novamente em um momento.',
       });
       return;
     }
@@ -255,21 +300,30 @@ export default function Home() {
           nicheDetails: values.nicheDetails,
         });
 
-        const newMessage: Omit<GeneratedMessage, 'id'> = {
-          message: result.message,
-          salesTag: values.salesTag,
-        };
+        const { data: newMessage, error: insertError } = await supabase
+          .from('messages')
+          .insert({
+            message: result.message,
+            sales_tag: values.salesTag,
+            user_id: user.id,
+          })
+          .select()
+          .single();
         
+        if (insertError) throw insertError;
+        if (!newMessage) throw new Error('Failed to save the new message.');
+
         setGeneratedMessages(prev => [newMessage, ...prev]);
 
         // Increment message count
-        const newCount = profile.message_count + 1;
+        const newCount = (profile.message_count || 0) + 1;
         const { error: updateError } = await supabase
           .from('profiles')
           .update({ message_count: newCount })
           .eq('id', user.id);
-        
+
         if (updateError) throw updateError;
+
 
         setProfile(p => p ? { ...p, message_count: newCount } : null);
 
@@ -277,8 +331,10 @@ export default function Home() {
           salesTag: values.salesTag,
           nicheDetails: '',
         });
-      } catch (error: any) {
-        console.error('Failed to generate or update message count:', error);
+
+      } catch (error: any)
+      {
+        console.error('Failed to generate or save message:', error);
         toast({
           variant: 'destructive',
           title: 'Erro',
@@ -293,12 +349,8 @@ export default function Home() {
     setIsAuthLoading(true);
     try {
       const { error } = await supabase.auth.signOut();
-      if (error) {
-        throw error;
-      }
-      setUser(null);
-      setProfile(null);
-      setGeneratedMessages([]);
+      if (error) throw error;
+      // State will be cleared by onAuthStateChange listener
       toast({
         title: 'Logout realizado',
         description: 'Você foi desconectado com sucesso.',
@@ -311,12 +363,10 @@ export default function Home() {
         description: error.message || "Não foi possível sair. Por favor, tente novamente.",
       });
     } finally {
-      setIsAuthLoading(false);
+       // onAuthStateChange will handle setting loading to false
     }
   };
   
-  const messagesToDisplay = isGenerating ? [{ message: '...', salesTag: form.getValues('salesTag') }, ...generatedMessages] : generatedMessages;
-
   return (
     <div className="flex flex-col min-h-screen font-sans bg-white">
        <header className="container mx-auto px-4 sm:px-6 lg:px-8">
@@ -333,14 +383,16 @@ export default function Home() {
       <main className="flex-1 flex flex-col items-center px-4 pt-8">
         <div className="w-full max-w-2xl mx-auto flex-1 flex flex-col">
           <div className="flex-grow space-y-6">
-            {messagesToDisplay.length === 0 && !isGenerating && (
+            {generatedMessages.length === 0 && !isGenerating && (
               <div className="text-center">
                  {isAuthLoading ? (
                   <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
-                ) : (
+                ) : !user ? (
                   <h2 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
                     Crie textos prontos de vendas para WhatsApp personalizados para seu negócio.
                   </h2>
+                ) : (
+                  <h2 className="text-2xl font-semibold text-foreground/80">Você ainda não gerou nenhuma mensagem.</h2>
                 )}
               </div>
             )}
@@ -364,12 +416,11 @@ export default function Home() {
             )}
 
             {generatedMessages.length > 0 &&
-              !isGenerating &&
               generatedMessages.map((msg, i) => (
                 <GeneratedMessageCard
-                  key={msg.id || i}
+                  key={msg.id}
                   message={msg.message}
-                  salesTag={msg.salesTag}
+                  salesTag={msg.sales_tag}
                   index={generatedMessages.length - i}
                 />
               ))}
@@ -493,5 +544,3 @@ export default function Home() {
     </div>
   );
 }
-
-    
