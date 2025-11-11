@@ -1,6 +1,118 @@
 {
-  "entities": {},
+  "entities": {
+    "SalesTag": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "SalesTag",
+      "type": "object",
+      "description": "Represents a predefined sales tag for generating sales messages.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the SalesTag entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the sales tag (e.g., 'Greeting', 'Objection')."
+        },
+        "description": {
+          "type": "string",
+          "description": "A description of the sales tag's purpose."
+        },
+        "type": {
+          "type": "string",
+          "description": "Categorization of the type of sales tag. (e.g. 'greeting', 'group', 'objection')",
+          "format": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "type"
+      ]
+    },
+    "GeneratedMessage": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "GeneratedMessage",
+      "type": "object",
+      "description": "Represents a generated sales message.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the GeneratedMessage entity."
+        },
+        "salesTagId": {
+          "type": "string",
+          "description": "Reference to SalesTag. (Relationship: SalesTag 1:N GeneratedMessage)"
+        },
+        "niche": {
+          "type": "string",
+          "description": "The specific niche the message is tailored for."
+        },
+        "messageText": {
+          "type": "string",
+          "description": "The generated sales message text."
+        },
+        "generationTimestamp": {
+          "type": "string",
+          "description": "Timestamp indicating when the message was generated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "salesTagId",
+        "niche",
+        "messageText",
+        "generationTimestamp"
+      ]
+    }
+  },
   "auth": {
-    "providers": []
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/salesTags/{salesTagId}",
+        "definition": {
+          "entityName": "SalesTag",
+          "schema": {
+            "$ref": "#/backend/entities/SalesTag"
+          },
+          "description": "Stores predefined sales tags. Accessible to admins, if needed. Consider using a /roles_admin/{uid} collection to define administrators.",
+          "params": [
+            {
+              "name": "salesTagId",
+              "description": "Unique identifier for the sales tag."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/generatedMessages/{generatedMessageId}",
+        "definition": {
+          "entityName": "GeneratedMessage",
+          "schema": {
+            "$ref": "#/backend/entities/GeneratedMessage"
+          },
+          "description": "Stores generated sales messages for each user. Path-based ownership is enforced through the /users/{userId} path, ensuring that only the authenticated user can access their own messages.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "Unique identifier for the user."
+            },
+            {
+              "name": "generatedMessageId",
+              "description": "Unique identifier for the generated message."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to store sales tags and generated messages, prioritizing authorization independence and scalability. Sales tags are stored in a top-level collection, `/salesTags`, accessible to admins (if needed, a `/roles_admin/{uid}` collection could be introduced). Generated messages are stored within each user's document under a subcollection `/users/{userId}/generatedMessages`. This ensures path-based ownership and authorization independence.\n\nThe `/users/{userId}/generatedMessages` structure enables straightforward security rules based on `request.auth.uid`. Each user can only access their own generated messages. There is no reliance on parent document data, supporting atomic operations. The structure supports QAPs, as list operations are scoped to a user's messages and filtering is done on data within the document (rules are not filters).\n\nThis design simplifies security rules, enhances debuggability, and promotes scalability."
   }
 }
