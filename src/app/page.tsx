@@ -15,6 +15,7 @@ import {
   FormControl,
   FormField,
   FormItem,
+  FormLabel,
   FormMessage,
 } from '@/components/ui/form';
 import {
@@ -132,6 +133,9 @@ export default function Home() {
 
   const phoneForm = useForm<z.infer<typeof phoneSchema>>({
     resolver: zodResolver(phoneSchema),
+    defaultValues: {
+      phoneNumber: ''
+    }
   });
 
   const codeForm = useForm<z.infer<typeof codeSchema>>({
@@ -173,6 +177,9 @@ export default function Home() {
   const onSendCode = async (values: z.infer<typeof phoneSchema>) => {
     setIsSendingCode(true);
     try {
+      if (!auth) {
+        throw new Error('Serviço de autenticação não está pronto');
+      }
       const verifier = window.recaptchaVerifier;
       const result = await signInWithPhoneNumber(auth, values.phoneNumber, verifier);
       setConfirmationResult(result);
@@ -210,6 +217,9 @@ export default function Home() {
             createdAt: serverTimestamp(),
             messageCount: 0,
           });
+          setMessageCount(0);
+        } else {
+           setMessageCount(userDoc.data().messageCount || 0);
         }
       }
 
@@ -217,6 +227,10 @@ export default function Home() {
         title: 'Login realizado com sucesso!',
       });
       setShowLoginModal(false);
+      setConfirmationResult(null);
+      phoneForm.reset();
+      codeForm.reset();
+
     } catch (error: any) {
       console.error(error);
       toast({
@@ -290,6 +304,9 @@ export default function Home() {
     await signOut(auth);
     setGeneratedMessages([]);
     setMessageCount(0);
+    setConfirmationResult(null);
+    phoneForm.reset();
+    codeForm.reset();
   };
   
   return (
@@ -398,7 +415,7 @@ export default function Home() {
                     type="submit"
                     size="icon"
                     className="ml-2 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white flex-shrink-0"
-                    disabled={isGenerating}
+                    disabled={isGenerating || isUserLoading}
                   >
                     {isGenerating ? (
                       <Loader2 className="h-5 w-5 animate-spin" />
@@ -471,7 +488,11 @@ export default function Home() {
                   {isVerifyingCode && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Verificar e Entrar
                 </Button>
-                 <Button variant="link" size="sm" onClick={() => setConfirmationResult(null)}>
+                 <Button variant="link" size="sm" onClick={() => {
+                   setConfirmationResult(null);
+                   phoneForm.reset();
+                   codeForm.reset();
+                  }}>
                     Usar outro número
                   </Button>
               </form>
