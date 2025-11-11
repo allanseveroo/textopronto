@@ -36,6 +36,11 @@ const formSchema = z.object({
   nicheDetails: z.string().min(1, "Escreva sobre seu negócio."),
 });
 
+type GeneratedMessage = {
+  message: string;
+  salesTag: string;
+};
+
 const salesTags = [
   { value: "Saudação" },
   { value: "Prospecção em Grupos" },
@@ -44,7 +49,7 @@ const salesTags = [
   { value: "Promoção" },
 ];
 
-const GeneratedMessageCard = ({ message, index }: { message: string; index: number }) => {
+const GeneratedMessageCard = ({ message, salesTag, index }: { message: string; salesTag: string; index: number }) => {
   const [isCopied, setIsCopied] = useState(false);
   const { toast } = useToast();
 
@@ -60,7 +65,7 @@ const GeneratedMessageCard = ({ message, index }: { message: string; index: numb
   return (
     <Card className="text-left max-w-xl w-full mx-auto transition-all duration-500 animate-in fade-in-0 zoom-in-95 bg-card shadow-lg">
       <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
-        <CardTitle className="font-bold text-lg">Sua Mensagem #{index}</CardTitle>
+        <CardTitle className="font-bold text-lg">Sua Mensagem #{index} - ({salesTag})</CardTitle>
         <Button variant="ghost" size="sm" onClick={copyToClipboard} className="shrink-0 bg-secondary hover:bg-secondary/80">
           {isCopied ? <Check className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />}
           {isCopied ? 'Copiado!' : 'Copiar'}
@@ -78,7 +83,7 @@ const GeneratedMessageCard = ({ message, index }: { message: string; index: numb
 
 export default function Home() {
   const [isGenerating, startTransition] = useTransition();
-  const [generatedMessages, setGeneratedMessages] = useState<string[]>([]);
+  const [generatedMessages, setGeneratedMessages] = useState<GeneratedMessage[]>([]);
   const { toast } = useToast();
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -96,7 +101,7 @@ export default function Home() {
           salesTag: values.salesTag,
           nicheDetails: values.nicheDetails,
         });
-        setGeneratedMessages(prev => [result.message, ...prev]);
+        setGeneratedMessages(prev => [{ message: result.message, salesTag: values.salesTag }, ...prev]);
         form.reset({
           salesTag: values.salesTag,
           nicheDetails: "",
@@ -126,7 +131,7 @@ export default function Home() {
             {generatedMessages.length === 0 && !isGenerating && (
                <div className="text-center">
                 <h2 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
-                  Crie textos prontos de vendas para <span className="text-primary">WhatsApp</span> personalizados para seu negócio.
+                  Crie textos prontos de vendas para WhatsApp personalizados para seu negócio.
                 </h2>
               </div>
             )}
@@ -149,7 +154,7 @@ export default function Home() {
 
             {generatedMessages.length > 0 &&
               generatedMessages.map((msg, i) => (
-                <GeneratedMessageCard key={i} message={msg} index={generatedMessages.length - i} />
+                <GeneratedMessageCard key={i} message={msg.message} salesTag={msg.salesTag} index={generatedMessages.length - i} />
               ))}
           </div>
 
@@ -157,7 +162,7 @@ export default function Home() {
             <Form {...form}>
               <form
                 onSubmit={form.handleSubmit(onSubmit)}
-                className="relative w-full max-w-xl mx-auto rounded-full bg-secondary p-2 shadow-lg"
+                className="relative w-full max-w-xl mx-auto rounded-full bg-white p-2 shadow-[0_4px_16px_rgba(0,0,0,0.05)]"
               >
                 <div className="flex items-center">
                   <FormField
@@ -170,7 +175,7 @@ export default function Home() {
                           defaultValue={field.value}
                         >
                           <FormControl>
-                            <SelectTrigger className="bg-background rounded-full border-none shadow-sm pr-8">
+                            <SelectTrigger className="bg-neutral-100 rounded-full border-none shadow-sm pr-8 text-neutral-600">
                               <SelectValue />
                             </SelectTrigger>
                           </FormControl>
@@ -194,7 +199,7 @@ export default function Home() {
                         <FormControl>
                           <Input
                             placeholder="Escreva sobre seu negócio aqui"
-                            className="bg-transparent border-none focus-visible:ring-0 focus-visible:ring-offset-0 text-base placeholder:text-muted-foreground"
+                            className="bg-transparent border-none focus-visible:ring-0 focus-visible:ring-offset-0 text-base placeholder:text-neutral-400"
                             {...field}
                           />
                         </FormControl>
@@ -205,7 +210,7 @@ export default function Home() {
                   <Button
                     type="submit"
                     size="icon"
-                    className="ml-2 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground flex-shrink-0"
+                    className="ml-2 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white flex-shrink-0"
                     disabled={isGenerating}
                   >
                     {isGenerating ? (
@@ -223,7 +228,7 @@ export default function Home() {
         </div>
       </main>
       <footer className="py-8">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 text-center text-sm text-muted-foreground">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 text-center text-sm text-neutral-500">
           <p>Produto do Revizap</p>
         </div>
       </footer>
