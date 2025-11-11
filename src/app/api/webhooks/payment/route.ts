@@ -1,7 +1,7 @@
 'use server';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { initializeApp, getApps, App } from 'firebase-admin/app';
+import { initializeApp, getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { credential } from 'firebase-admin';
 
@@ -14,10 +14,14 @@ if (!getApps().length) {
       initializeApp({
         credential: credential.cert(serviceAccount),
       });
-    } else {
-      console.warn("FIREBASE_SERVICE_ACCOUNT_KEY não está definida. A API de webhook pode não funcionar em produção.");
-      // Adicione aqui uma inicialização de desenvolvimento se necessário,
-      // mas evite commitar credenciais no repositório.
+    } else if (process.env.GCP_PROJECT) {
+       // Em ambientes Google Cloud (como App Hosting/Cloud Run), as credenciais são automáticas
+       initializeApp({
+         projectId: process.env.GCP_PROJECT,
+       });
+    }
+     else {
+      console.warn("FIREBASE_SERVICE_ACCOUNT_KEY ou GCP_PROJECT não está definida. A API de webhook pode não funcionar corretamente.");
     }
   } catch (error) {
     console.error("Erro ao inicializar Firebase Admin SDK:", error);
