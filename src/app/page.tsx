@@ -302,7 +302,7 @@ export default function Home() {
             <Form {...form}>
               <form
                 onSubmit={form.handleSubmit(onSubmit)}
-                className="relative w-full max-w-xl mx-auto rounded-full bg-white p-2 shadow-[0_4px_16px_rgba(0,0,0,0.05)] border"
+                className="relative w-full max-w-xl mx-auto rounded-full bg-white p-3 shadow-[0_4px_16px_rgba(0,0,0,0.05)] border"
               >
                 <div className="flex items-center">
                   <FormField
