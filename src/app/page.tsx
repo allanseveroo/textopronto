@@ -25,7 +25,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { Loader2, ArrowUp, Check, Copy } from 'lucide-react';
+import { Loader2, ArrowUp, Check, Copy, LogOut } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   Card,
@@ -33,11 +33,30 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription
+} from '@/components/ui/dialog';
+import { useUser, useAuth, useFirestore, useMemoFirebase } from '@/firebase';
+import { RecaptchaVerifier, signInWithPhoneNumber, signOut } from 'firebase/auth';
+import { doc, setDoc, getDoc, serverTimestamp, increment } from 'firebase/firestore';
 
 const formSchema = z.object({
   salesTag: z.string().default('Saudação'),
   nicheDetails: z.string().min(1, 'Escreva sobre seu negócio.'),
 });
+
+const phoneLoginFormSchema = z.object({
+  phoneNumber: z.string().min(10, 'Número de telefone inválido'),
+});
+
+const otpFormSchema = z.object({
+  otp: z.string().min(6, 'Código OTP inválido'),
+});
+
 
 type GeneratedMessage = {
   message: string;
@@ -98,7 +117,17 @@ const GeneratedMessageCard = ({ message, salesTag, index }: { message: string; s
 export default function Home() {
   const [isGenerating, startTransition] = useTransition();
   const [generatedMessages, setGeneratedMessages] = useState<GeneratedMessage[]>([]);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [confirmationResult, setConfirmationResult] = useState<any>(null);
+  const [isSendingCode, setIsSendingCode] = useState(false);
+  const [isVerifyingCode, setIsVerifyingCode] = useState(false);
+
   const { toast } = useToast();
+  const { user, isUserLoading } = useUser();
+  const auth = useAuth();
+  const firestore = useFirestore();
+
+  const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -108,7 +137,107 @@ export default function Home() {
     },
   });
 
+  const phoneLoginForm = useForm<z.infer<typeof phoneLoginFormSchema>>({
+    resolver: zodResolver(phoneLoginFormSchema),
+  });
+
+  const otpForm = useForm<z.infer<typeof otpFormSchema>>({
+    resolver: zodResolver(otpFormSchema),
+  });
+
+
+  const setupRecaptcha = () => {
+    if (!auth) return;
+    if (!(window as any).recaptchaVerifier) {
+      const verifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+        'size': 'invisible',
+        'callback': (response: any) => {
+          // reCAPTCHA solved, allow signInWithPhoneNumber.
+        }
+      });
+      (window as any).recaptchaVerifier = verifier;
+    }
+  };
+  
+  const onSendCode = async (values: z.infer<typeof phoneLoginFormSchema>) => {
+    setIsSendingCode(true);
+    setupRecaptcha();
+    try {
+      if (!auth || !(window as any).recaptchaVerifier) {
+        throw new Error('Serviço de autenticação ou reCAPTCHA não está pronto');
+      }
+      const verifier = (window as any).recaptchaVerifier;
+      const result = await signInWithPhoneNumber(auth, values.phoneNumber, verifier);
+      setConfirmationResult(result);
+      toast({
+        title: 'Código enviado!',
+        description: 'Enviamos um código de verificação para o seu celular.',
+      });
+    } catch (error: any) {
+      console.error('Error sending code:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao enviar código',
+        description: error.message || 'Ocorreu um problema ao enviar o código. Tente novamente.',
+      });
+    } finally {
+      setIsSendingCode(false);
+    }
+  };
+
+  const onVerifyOtp = async (values: z.infer<typeof otpFormSchema>) => {
+    if (!confirmationResult) return;
+    setIsVerifyingCode(true);
+    try {
+      const credential = await confirmationResult.confirm(values.otp);
+      const user = credential.user;
+      const userDoc = doc(firestore, "users", user.uid);
+      const userDocSnap = await getDoc(userDoc);
+
+      if (!userDocSnap.exists()) {
+        await setDoc(userDoc, { 
+          phoneNumber: user.phoneNumber,
+          createdAt: serverTimestamp(),
+          messageCount: 0
+        });
+      }
+      setShowLoginModal(false);
+      toast({
+        title: 'Login realizado com sucesso!',
+        description: 'Agora você pode gerar suas mensagens.',
+      });
+    } catch (error: any) {
+      console.error('Error verifying OTP:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao verificar código',
+        description: 'O código informado é inválido. Tente novamente.',
+      });
+    } finally {
+      setIsVerifyingCode(false);
+    }
+  };
+
+
   async function onSubmit(values: z.infer<typeof formSchema>) {
+    if (!user) {
+      setShowLoginModal(true);
+      return;
+    }
+
+    if (userDocRef) {
+        const userDocSnap = await getDoc(userDocRef);
+        if (userDocSnap.exists() && userDocSnap.data().messageCount >= 5) {
+            toast({
+                variant: 'destructive',
+                title: 'Limite atingido',
+                description: 'Você já gerou 5 mensagens. Para gerar mais, por favor, entre em contato.',
+            });
+            return;
+        }
+    }
+
+
     startTransition(async () => {
       try {
         const result = await generateWhatsAppMessage({
@@ -117,6 +246,10 @@ export default function Home() {
         });
         setGeneratedMessages(prev => [{ message: result.message, salesTag: values.salesTag }, ...prev]);
         
+        if (userDocRef) {
+            await setDoc(userDocRef, { messageCount: increment(1) }, { merge: true });
+        }
+
         form.reset({
           salesTag: values.salesTag,
           nicheDetails: '',
@@ -133,11 +266,28 @@ export default function Home() {
     });
   }
 
+  const handleLogout = async () => {
+    if (auth) {
+      await signOut(auth);
+      setGeneratedMessages([]);
+      toast({
+        title: 'Logout realizado',
+        description: 'Você foi desconectado com sucesso.',
+      });
+    }
+  };
+
   return (
     <div className="flex flex-col min-h-screen font-sans bg-white">
        <header className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
           <h1 className="text-2xl font-bold text-foreground">TextoPronto</h1>
+           {user && (
+            <Button variant="ghost" onClick={handleLogout} disabled={isUserLoading}>
+              <LogOut className="mr-2 h-4 w-4" />
+              Sair
+            </Button>
+          )}
         </div>
       </header>
       <main className="flex-1 flex flex-col items-center px-4 pt-8">
@@ -233,9 +383,9 @@ export default function Home() {
                     type="submit"
                     size="icon"
                     className="ml-2 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white flex-shrink-0"
-                    disabled={isGenerating}
+                    disabled={isGenerating || isUserLoading}
                   >
-                    {isGenerating ? (
+                    {isGenerating || isUserLoading ? (
                       <Loader2 className="h-5 w-5 animate-spin" />
                     ) : (
                       <ArrowUp className="h-5 w-5" />
@@ -253,6 +403,63 @@ export default function Home() {
           <p>Produto do Revizap</p>
         </div>
       </footer>
+        <Dialog open={showLoginModal} onOpenChange={setShowLoginModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cadastro Grátis</DialogTitle>
+            <DialogDescription>
+              { !confirmationResult
+                ? 'Insira seu número de WhatsApp para receber um código e começar a usar.'
+                : 'Insira o código que você recebeu por SMS.'
+              }
+            </DialogDescription>
+          </DialogHeader>
+          { !confirmationResult ? (
+            <Form {...phoneLoginForm}>
+              <form onSubmit={phoneLoginForm.handleSubmit(onSendCode)} className="space-y-4">
+                <FormField
+                  control={phoneLoginForm.control}
+                  name="phoneNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Input placeholder="+55 (DDD) 99999-9999" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button type="submit" className="w-full" disabled={isSendingCode}>
+                  {isSendingCode && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Enviar Código
+                </Button>
+              </form>
+            </Form>
+          ) : (
+             <Form {...otpForm}>
+              <form onSubmit={otpForm.handleSubmit(onVerifyOtp)} className="space-y-4">
+                <FormField
+                  control={otpForm.control}
+                  name="otp"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Input placeholder="Seu código de 6 dígitos" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button type="submit" className="w-full" disabled={isVerifyingCode}>
+                  {isVerifyingCode && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Verificar e Entrar
+                </Button>
+              </form>
+            </Form>
+          )}
+           <div id="recaptcha-container"></div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

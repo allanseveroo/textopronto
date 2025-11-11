@@ -1,61 +1,12 @@
-/**
- * @file Firestore Security Rules
- * @description This ruleset enforces a strict user-ownership model for generated messages and allows public read access to sales tags.
- *
- * Data Structure:
- * - /salesTags/{salesTagId}: Publicly readable collection of sales tags.  Write access is not granted in these rules.
- * - /users/{userId}/generatedMessages/{generatedMessageId}:  Collection of generated messages owned by a specific user. Only the owner can create, read, update, or delete messages.
- *
- * Key Security Decisions:
- * - Sales tags are publicly readable to allow easy access for all users.
- * - Generated messages are strictly owned by the user ID in the path.
- * - Listing of sales tags is allowed for all users. Listing of generated messages is restricted to the owner.
- * - The rules do not enforce any data validation beyond ownership.
- */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    /**
-     * @description Allows anyone to read sales tags, but restricts creation, update, and deletion.
-     * @path /salesTags/{salesTagId}
-     * @allow (get, list): if true
-     * @deny (create, update, delete): if false
-     * @principle Public read access for sales tags.  No write access granted.
-     */
-    match /salesTags/{salesTagId} {
-      allow get, list: if true;
-      allow create, update, delete: if false;
+    match /users/{userId} {
+      allow read, write: if request.auth.uid == userId;
     }
 
-    /**
-     * @description Enforces user-ownership for generated messages. Only the user specified in the path can create, read, update, or delete their own messages.
-     * @path /users/{userId}/generatedMessages/{generatedMessageId}
-     * @allow (create): Authenticated user with the user ID "testuser" can create a new message.
-     * @allow (get, list, update, delete): Authenticated user with the user ID matching the document can access the message.
-     * @deny (create): Authenticated user with a mismatched user ID attempts to create a message.
-     * @deny (get, list, update, delete): Authenticated user with a mismatched user ID attempts to access the message.
-     * @principle Enforces document ownership for all operations.
-     */
     match /users/{userId}/generatedMessages/{generatedMessageId} {
-      allow get: if isSignedIn() && isOwner(userId);
-      allow list: if isSignedIn() && isOwner(userId);
-      allow create: if isSignedIn() && request.auth.uid == userId;
-      allow update: if isSignedIn() && isOwner(userId) && resource != null;
-      allow delete: if isSignedIn() && isExistingOwner(userId);
+      allow read, write: if request.auth.uid == userId;
     }
-  }
-
-  // Helper functions
-  function isSignedIn() {
-    return request.auth != null;
-  }
-
-  function isOwner(userId) {
-    return request.auth.uid == userId;
-  }
-
-  function isExistingOwner(userId) {
-    return isSignedIn() && isOwner(userId) && resource != null;
   }
 }

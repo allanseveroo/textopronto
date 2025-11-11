@@ -1,34 +1,34 @@
 {
   "entities": {
-    "SalesTag": {
+    "User": {
       "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "SalesTag",
+      "title": "User",
       "type": "object",
-      "description": "Represents a predefined sales tag for generating sales messages.",
+      "description": "Represents a user in the system.",
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the SalesTag entity."
+          "description": "Unique identifier for the user."
         },
-        "name": {
+        "phoneNumber": {
           "type": "string",
-          "description": "The name of the sales tag (e.g., 'Greeting', 'Objection')."
+          "description": "The user's phone number."
         },
-        "description": {
+        "createdAt": {
           "type": "string",
-          "description": "A description of the sales tag's purpose."
+          "format": "date-time",
+          "description": "Timestamp of when the user account was created."
         },
-        "type": {
-          "type": "string",
-          "description": "Categorization of the type of sales tag. (e.g. 'greeting', 'group', 'objection')",
-          "format": "string"
+        "messageCount": {
+          "type": "number",
+          "description": "The number of messages the user has generated."
         }
       },
       "required": [
         "id",
-        "name",
-        "description",
-        "type"
+        "phoneNumber",
+        "createdAt",
+        "messageCount"
       ]
     },
     "GeneratedMessage": {
@@ -70,24 +70,23 @@
   },
   "auth": {
     "providers": [
-      "password",
-      "anonymous"
+      "phone"
     ]
   },
   "firestore": {
     "structure": [
       {
-        "path": "/salesTags/{salesTagId}",
+        "path": "/users/{userId}",
         "definition": {
-          "entityName": "SalesTag",
+          "entityName": "User",
           "schema": {
-            "$ref": "#/backend/entities/SalesTag"
+            "$ref": "#/backend/entities/User"
           },
-          "description": "Stores predefined sales tags. Accessible to admins, if needed. Consider using a /roles_admin/{uid} collection to define administrators.",
+          "description": "Stores user profiles.",
           "params": [
             {
-              "name": "salesTagId",
-              "description": "Unique identifier for the sales tag."
+              "name": "userId",
+              "description": "Unique identifier for the user."
             }
           ]
         }
@@ -112,7 +111,6 @@
           ]
         }
       }
-    ],
-    "reasoning": "The Firestore structure is designed to store sales tags and generated messages, prioritizing authorization independence and scalability. Sales tags are stored in a top-level collection, `/salesTags`, accessible to admins (if needed, a `/roles_admin/{uid}` collection could be introduced). Generated messages are stored within each user's document under a subcollection `/users/{userId}/generatedMessages`. This ensures path-based ownership and authorization independence.\n\nThe `/users/{userId}/generatedMessages` structure enables straightforward security rules based on `request.auth.uid`. Each user can only access their own generated messages. There is no reliance on parent document data, supporting atomic operations. The structure supports QAPs, as list operations are scoped to a user's messages and filtering is done on data within the document (rules are not filters).\n\nThis design simplifies security rules, enhances debuggability, and promotes scalability."
+    ]
   }
 }
