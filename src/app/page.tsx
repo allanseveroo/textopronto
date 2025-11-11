@@ -163,11 +163,13 @@ export default function Home() {
       if (!userDocSnap.exists()) {
         // Create user document in Firestore
         await setDoc(userDoc, {
+          uid: user.uid,
           displayName: user.displayName,
           email: user.email,
           photoURL: user.photoURL,
           createdAt: serverTimestamp(),
-          messageCount: 0
+          messageCount: 0,
+          plan: 'free'
         });
 
         // Send email to webhook
@@ -213,11 +215,11 @@ export default function Home() {
     if (userDocRef) {
         try {
             const userDocSnap = await getDoc(userDocRef);
-            if (userDocSnap.exists() && userDocSnap.data().messageCount >= 5) {
+            if (userDocSnap.exists() && userDocSnap.data().plan !== 'pro' && userDocSnap.data().messageCount >= 5) {
                 toast({
                     variant: 'destructive',
                     title: 'Limite atingido',
-                    description: 'Você já gerou 5 mensagens. Para gerar mais, por favor, entre em contato.',
+                    description: 'Você atingiu o limite de 5 mensagens do plano gratuito. Faça o upgrade para continuar.',
                 });
                 return;
             }

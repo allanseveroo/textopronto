@@ -44,7 +44,8 @@
         "uid",
         "email",
         "createdAt",
-        "messageCount"
+        "messageCount",
+        "plan"
       ]
     },
     "Message": {
