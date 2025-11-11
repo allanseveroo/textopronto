@@ -159,10 +159,9 @@ export default function Home() {
   }, [user, fetchMessageCount]);
 
 
-  useEffect(() => {
-    if (!auth || !showLoginModal || !document.getElementById('recaptcha-container')) return;
+  const getRecaptchaVerifier = () => {
+    if (!auth) throw new Error('Serviço de autenticação não está pronto');
     
-    // Ensure existing verifier is cleared before creating a new one
     if (window.recaptchaVerifier) {
       window.recaptchaVerifier.clear();
     }
@@ -171,23 +170,19 @@ export default function Home() {
       'size': 'invisible',
       'callback': (response: any) => {
         // reCAPTCHA solved, allow signInWithPhoneNumber.
+        // This callback is usually used for solving the reCAPTCHA explicitly.
+        // With invisible reCAPTCHA, it's often handled implicitly.
       }
     });
     window.recaptchaVerifier = verifier;
-
-    return () => {
-      verifier.clear();
-    }
-  }, [auth, showLoginModal]);
+    return verifier;
+  }
 
   const onSendCode = async (values: z.infer<typeof phoneSchema>) => {
     setIsSendingCode(true);
     try {
-      if (!auth || !window.recaptchaVerifier) {
-        throw new Error('Serviço de autenticação ou reCAPTCHA não está pronto');
-      }
-      const verifier = window.recaptchaVerifier;
-      const result = await signInWithPhoneNumber(auth, values.phoneNumber, verifier);
+      const verifier = getRecaptchaVerifier();
+      const result = await signInWithPhoneNumber(auth!, values.phoneNumber, verifier);
       setConfirmationResult(result);
       toast({
         title: 'Código enviado!',
@@ -200,6 +195,10 @@ export default function Home() {
         title: 'Erro ao enviar código',
         description: error.message || 'Não foi possível enviar o código. Tente novamente.',
       });
+       // Make sure to render the verifier in case of error to allow retry
+      if (window.recaptchaVerifier) {
+        window.recaptchaVerifier.render().catch(console.error);
+      }
     } finally {
       setIsSendingCode(false);
     }
@@ -515,8 +514,6 @@ export default function Home() {
 
 declare global {
   interface Window {
-    recaptchaVerifier: RecaptchaVerifier;
+    recaptchaVerifier?: RecaptchaVerifier;
   }
 }
-
-    
