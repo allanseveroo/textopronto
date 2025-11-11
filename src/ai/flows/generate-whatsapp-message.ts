@@ -50,6 +50,7 @@ const generateWhatsAppMessageFlow = ai.defineFlow(
     name: 'generateWhatsAppMessageFlow',
     inputSchema: GenerateWhatsAppMessageInputSchema,
     outputSchema: GenerateWhatsAppMessageOutputSchema,
+    retries: 3,
   },
   async input => {
     const {output} = await prompt(input);

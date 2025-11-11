@@ -41,6 +41,7 @@ const suggestNicheDetailsFlow = ai.defineFlow(
     name: 'suggestNicheDetailsFlow',
     inputSchema: SuggestNicheDetailsInputSchema,
     outputSchema: SuggestNicheDetailsOutputSchema,
+    retries: 3,
   },
   async input => {
     const {output} = await prompt(input);
