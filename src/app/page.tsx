@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -22,7 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Loader2, ArrowUp, Check, Copy } from "lucide-react";
+import { Loader2, ArrowUp, Check, Copy, LogOut } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   Card,
@@ -30,6 +31,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { useAuth, useUser } from "@/firebase";
+import { signOut } from "firebase/auth";
 
 const formSchema = z.object({
   salesTag: z.string().default("Saudação"),
@@ -42,17 +45,20 @@ type GeneratedMessage = {
 };
 
 const salesTags = [
-  { value: "Saudação" },
-  { value: "Prospecção em Grupos" },
-  { value: "Contorno de Objeções" },
-  { value: "Follow-up" },
-  { value: "Promoção" },
-  { value: "Recuperação de Vendas" },
-  { value: "Cobrança" },
-  { value: "Agendamento" },
-  { value: "Pós-venda" },
-  { value: "Pesquisa de Satisfação" },
-  { value: "Outros" },
+  { value: 'Saudação', label: '👋 Saudação' },
+  { value: 'Prospecção em Grupos', label: '👥 Prospecção em Grupos' },
+  { value: 'Contorno de Objeções', label: '🤔 Contorno de Objeções' },
+  { value: 'Follow-up', label: '🔄 Follow-up' },
+  { value: 'Promoção', label: '🎉 Promoção' },
+  { value: 'Recuperação de Vendas', label: '🛒 Recuperação de Vendas' },
+  { value: 'Cobrança', label: '💰 Cobrança' },
+  { value: 'Agendamento', label: '📅 Agendamento' },
+  { value: 'Pós-venda', label: '👍 Pós-venda' },
+  { value: 'Pesquisa de Satisfação', label: '🌟 Pesquisa de Satisfação' },
+  { value: 'Divulgação de Novidades', label: '🚀 Divulgação de Novidades' },
+  { value: 'Agradecimento', label: '🙏 Agradecimento' },
+  { value: 'Lembrete de Evento', label: '🔔 Lembrete de Evento' },
+  { value: 'Outros', label: '💬 Outros' },
 ];
 
 const GeneratedMessageCard = ({ message, salesTag, index }: { message: string; salesTag: string; index: number }) => {
@@ -68,10 +74,12 @@ const GeneratedMessageCard = ({ message, salesTag, index }: { message: string; s
     setTimeout(() => setIsCopied(false), 3000);
   };
 
+  const tagLabel = salesTags.find(tag => tag.value === salesTag)?.label || salesTag;
+
   return (
     <Card className="text-left max-w-xl w-full mx-auto transition-all duration-500 animate-in fade-in-0 zoom-in-95 bg-card shadow-lg">
       <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
-        <CardTitle className="font-bold text-lg">Sua Mensagem #{index} - ({salesTag})</CardTitle>
+        <CardTitle className="font-bold text-lg">Sua Mensagem #{index} - ({tagLabel})</CardTitle>
         <Button variant="ghost" size="sm" onClick={copyToClipboard} className="shrink-0 bg-secondary hover:bg-secondary/80">
           {isCopied ? <Check className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />}
           {isCopied ? 'Copiado!' : 'Copiar'}
@@ -91,6 +99,15 @@ export default function Home() {
   const [isGenerating, startTransition] = useTransition();
   const [generatedMessages, setGeneratedMessages] = useState<GeneratedMessage[]>([]);
   const { toast } = useToast();
+  const { user, isUserLoading } = useUser();
+  const auth = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.push('/login');
+    }
+  }, [user, isUserLoading, router]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -123,11 +140,28 @@ export default function Home() {
     });
   }
 
+  const handleLogout = async () => {
+    await signOut(auth);
+    router.push('/login');
+  };
+
+  if (isUserLoading || !user) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <Loader2 className="h-10 w-10 animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col min-h-screen bg-background font-sans">
       <header className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-start h-20">
+        <div className="flex items-center justify-between h-20">
           <h1 className="text-2xl font-bold text-foreground">TextoPronto</h1>
+          <Button variant="ghost" onClick={handleLogout}>
+            <LogOut className="mr-2 h-4 w-4" />
+            Sair
+          </Button>
         </div>
       </header>
       <main className="flex-1 flex flex-col items-center px-4 pt-8">
@@ -168,7 +202,7 @@ export default function Home() {
             <Form {...form}>
               <form
                 onSubmit={form.handleSubmit(onSubmit)}
-                className="relative w-full max-w-xl mx-auto rounded-full bg-white p-2 shadow-[0_4px_16px_rgba(0,0,0,0.05)]"
+                className="relative w-full max-w-xl mx-auto rounded-full bg-white p-2 shadow-[0_4px_16px_rgba(0,0,0,0.05)] border"
               >
                 <div className="flex items-center">
                   <FormField
@@ -188,7 +222,7 @@ export default function Home() {
                           <SelectContent>
                             {salesTags.map((tag) => (
                               <SelectItem key={tag.value} value={tag.value}>
-                                {tag.value}
+                                {tag.label}
                               </SelectItem>
                             ))}
                           </SelectContent>
