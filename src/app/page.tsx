@@ -242,8 +242,8 @@ export default function Home() {
         formValuesRef.current = null;
       }
     } catch (error: any) {
-      // If the user closes the popup, do nothing.
-      if (error.code === 'auth/popup-closed-by-user') {
+      // If the user closes the popup or cancels the request, do nothing.
+      if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
         return;
       }
   
@@ -436,3 +436,4 @@ export default function Home() {
       </footer>
     </div>
   );
+}
