@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -34,6 +34,7 @@ import {
 } from '@/components/ui/card';
 import { useAuth, useUser } from '@/firebase';
 import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
+import { supabase } from '@/lib/supabase';
 
 const formSchema = z.object({
   salesTag: z.string().default('Saudação'),
@@ -46,6 +47,12 @@ type GeneratedMessage = {
   salesTag: string;
 };
 
+type Profile = {
+  id: string;
+  email: string;
+  plan: 'free' | 'pro';
+  message_count: number;
+} | null;
 
 const salesTags = [
   { value: 'Saudação', label: '👋 Saudação' },
@@ -101,10 +108,55 @@ const GeneratedMessageCard = ({ message, salesTag, index }: { message: string; s
 export default function Home() {
   const [isGenerating, startTransition] = useTransition();
   const [generatedMessages, setGeneratedMessages] = useState<GeneratedMessage[]>([]);
+  const [profile, setProfile] = useState<Profile>(null);
   
   const auth = useAuth();
   const { user, isUserLoading } = useUser();
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (user && !isUserLoading) {
+      const manageUserProfile = async () => {
+        // 1. Check if user profile exists in Supabase
+        let { data: userProfile, error: fetchError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.uid)
+          .single();
+
+        if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116: "The result contains 0 rows"
+          console.error("Error fetching profile:", fetchError);
+          toast({ variant: 'destructive', title: 'Erro ao buscar perfil', description: fetchError.message });
+          return;
+        }
+
+        // 2. If profile doesn't exist, create it
+        if (!userProfile) {
+          const { data: newUserProfile, error: insertError } = await supabase
+            .from('profiles')
+            .insert([
+              { id: user.uid, email: user.email, plan: 'free', message_count: 0 },
+            ])
+            .select()
+            .single();
+
+          if (insertError) {
+            console.error("Error creating profile:", insertError);
+            toast({ variant: 'destructive', title: 'Erro ao criar perfil', description: insertError.message });
+            return;
+          }
+          userProfile = newUserProfile;
+        }
+
+        setProfile(userProfile);
+      };
+
+      manageUserProfile();
+    } else if (!user && !isUserLoading) {
+        setProfile(null);
+    }
+  }, [user, isUserLoading, toast]);
+
 
   const handleSignIn = async () => {
     const provider = new GoogleAuthProvider();
@@ -123,6 +175,7 @@ export default function Home() {
   const handleSignOut = async () => {
     try {
       await signOut(auth);
+      setProfile(null);
     } catch (error) {
       console.error("Error signing out", error);
       toast({
@@ -142,12 +195,45 @@ export default function Home() {
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
+    if (!user || !profile) {
+      toast({
+        variant: 'destructive',
+        title: 'Acesso Negado',
+        description: 'Você precisa estar logado para gerar mensagens.',
+      });
+      return;
+    }
+
+    if (profile.plan === 'free' && profile.message_count >= 5) {
+      toast({
+        title: 'Limite Atingido',
+        description: 'Você atingiu o limite de 5 mensagens do plano gratuito. Faça upgrade para continuar!',
+      });
+      // Here you would trigger an upgrade modal
+      return;
+    }
+
     startTransition(async () => {
       try {
         const result = await generateWhatsAppMessage({
           salesTag: values.salesTag,
           nicheDetails: values.nicheDetails,
         });
+
+        // Increment message count in Supabase
+        const newCount = profile.message_count + 1;
+        const { data: updatedProfile, error: updateError } = await supabase
+          .from('profiles')
+          .update({ message_count: newCount })
+          .eq('id', user.uid)
+          .select()
+          .single();
+
+        if (updateError) {
+          throw new Error(updateError.message);
+        }
+
+        setProfile(updatedProfile);
 
         const newMessage: GeneratedMessage = {
           id: Date.now(),
