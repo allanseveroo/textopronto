@@ -404,13 +404,13 @@ export default function Home() {
           <Form {...form}>
             <div className="flex-grow space-y-4 md:space-y-6 pb-4">
               
-              {generatedMessages.length === 0 && !isGenerating && (
+              {(generatedMessages.length === 0 && !isGenerating) && (
                 <div className="text-center pt-8 md:pt-0">
                   {isLoading ? (
                     <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
                   ) : (
                     <>
-                      <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+                      <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
                         Crie textos de vendas para WhatsApp para o seu negócio.
                       </h2>
                       {user && userProfile && userProfile.plan === 'free' && (
@@ -422,6 +422,33 @@ export default function Home() {
                   )}
                 </div>
               )}
+
+              <div className="space-y-2 pb-4">
+                <FormField
+                  control={form.control}
+                  name="salesTag"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-sm font-medium text-foreground/80">Selecione um tipo de mensagem:</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione..." />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {salesTags.map(tag => (
+                            <SelectItem key={tag.value} value={tag.value}>
+                              {tag.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
               {isGenerating && (
                 <Card className="text-left max-w-2xl mx-auto bg-card shadow-lg">
@@ -459,34 +486,9 @@ export default function Home() {
                           <FormItem>
                               <FormControl>
                                   <div className="relative w-full">
-                                      <div className="absolute left-3 top-3 z-10">
-                                          <FormField
-                                              control={form.control}
-                                              name="salesTag"
-                                              render={({ field }) => (
-                                                  <FormItem>
-                                                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                          <FormControl>
-                                                              <SelectTrigger className="h-auto w-auto bg-zinc-200 border-zinc-300 rounded-lg text-xs p-1.5 md:p-2">
-                                                                  <SelectValue placeholder="Selecione..." />
-                                                              </SelectTrigger>
-                                                          </FormControl>
-                                                          <SelectContent>
-                                                              {salesTags.map(tag => (
-                                                                  <SelectItem key={tag.value} value={tag.value}>
-                                                                      {tag.label}
-                                                                  </SelectItem>
-                                                              ))}
-                                                          </SelectContent>
-                                                      </Select>
-                                                      <FormMessage />
-                                                  </FormItem>
-                                              )}
-                                          />
-                                      </div>
                                       <TextareaAutosize
                                           placeholder="Ex: Vendo um curso de inglês online para iniciantes por R$997"
-                                          className="w-full bg-zinc-100 border-zinc-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none text-sm sm:text-base placeholder:text-neutral-400 leading-tight p-4 pl-36 pr-14"
+                                          className="w-full bg-zinc-100 border-zinc-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none text-sm sm:text-base placeholder:text-neutral-400 leading-tight p-4 pr-14"
                                           minRows={2}
                                           maxRows={5}
                                           {...field}
