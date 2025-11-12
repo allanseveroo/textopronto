@@ -23,7 +23,6 @@ import {
   FormField,
   FormItem,
   FormMessage,
-  FormLabel,
 } from '@/components/ui/form';
 import {
   Select,
@@ -401,17 +400,16 @@ export default function Home() {
       </header>
       <main className="flex-1 flex flex-col items-center px-4 pt-4 md:pt-8">
         <div className="w-full max-w-2xl mx-auto flex-1 flex flex-col">
-          <Form {...form}>
-            <div className="flex-grow space-y-4 md:space-y-6 pb-4">
+          <div className="flex-grow space-y-4 md:space-y-6 pb-4">
               
               {(generatedMessages.length === 0 && !isGenerating) && (
-                <div className="text-center pt-8 md:pt-0">
+                <div className="text-center pt-8 md:pt-16">
                   {isLoading ? (
                     <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
                   ) : (
                     <>
-                      <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-                        Crie textos de vendas para WhatsApp para o seu negócio.
+                      <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground leading-tight">
+                        Crie textos prontos de vendas<br />para <span className='text-primary'>WhatsApp</span> personalizados<br />para seu negócio.
                       </h2>
                       {user && userProfile && userProfile.plan === 'free' && (
                         <p className="mt-4 text-muted-foreground">
@@ -449,33 +447,37 @@ export default function Home() {
               ))}
             </div>
 
-            <div className="sticky bottom-0 bg-white/80 backdrop-blur-sm pt-2 pb-4 md:pt-4 md:pb-6 mt-auto">
-                <div className="pb-3 px-1">
-                  <FormField
-                    control={form.control}
-                    name="salesTag"
-                    render={({ field }) => (
-                      <FormItem>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger className="w-auto h-auto px-3 py-1 text-xs rounded-full border-zinc-200 bg-zinc-100/80">
-                              <SelectValue placeholder="Selecione..." />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {salesTags.map(tag => (
-                              <SelectItem key={tag.value} value={tag.value}>
-                                {tag.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <Form {...form}>
+              <form 
+                onSubmit={form.handleSubmit(onSubmit)} 
+                className="sticky bottom-0 bg-white/80 backdrop-blur-sm pt-2 pb-4 md:pt-4 md:pb-6 mt-auto space-y-3"
+              >
+                  <div className="flex justify-center">
+                    <FormField
+                      control={form.control}
+                      name="salesTag"
+                      render={({ field }) => (
+                        <FormItem>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger className="w-auto h-auto px-3 py-1 text-xs rounded-full border-zinc-200 bg-zinc-100/80">
+                                <SelectValue placeholder="Selecione..." />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {salesTags.map(tag => (
+                                <SelectItem key={tag.value} value={tag.value}>
+                                  {tag.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  
                   <FormField
                       control={form.control}
                       name="nicheDetails"
@@ -484,9 +486,9 @@ export default function Home() {
                               <FormControl>
                                   <div className="relative w-full">
                                       <TextareaAutosize
-                                          placeholder="Ex: Vendo um curso de inglês online para iniciantes por R$997"
+                                          placeholder="Escreva sobre seu negócio aqui"
                                           className="w-full bg-zinc-100 border-zinc-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none text-sm sm:text-base placeholder:text-neutral-400 leading-tight p-4 pr-14"
-                                          minRows={2}
+                                          minRows={1}
                                           maxRows={5}
                                           {...field}
                                           onKeyDown={e => {
@@ -499,13 +501,13 @@ export default function Home() {
                                       <Button
                                           type="submit"
                                           size="icon"
-                                          className="absolute right-3 bottom-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg w-9 h-9"
+                                          className="absolute right-2 top-1/2 -translate-y-1/2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg w-8 h-8"
                                           disabled={isGenerating || isLoading}
                                       >
                                           {isGenerating ? (
-                                              <Loader2 className="h-5 w-5 animate-spin" />
+                                              <Loader2 className="h-4 w-4 animate-spin" />
                                           ) : (
-                                              <ArrowUp className="h-5 w-5" />
+                                              <ArrowUp className="h-4 w-4" />
                                           )}
                                           <span className="sr-only">Gerar</span>
                                       </Button>
@@ -516,8 +518,7 @@ export default function Home() {
                       )}
                   />
                 </form>
-            </div>
-          </Form>
+            </Form>
         </div>
       </main>
 
@@ -542,4 +543,5 @@ export default function Home() {
       </footer>
     </div>
   );
-}
+
+    
