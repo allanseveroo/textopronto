@@ -385,7 +385,7 @@ export default function Home() {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
        <header className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-20">
+        <div className="flex items-center justify-between h-16 md:h-20">
           <h1 className="text-2xl font-bold text-foreground">TextoPronto</h1>
            {user && (
             <div className="flex items-center gap-4">
@@ -398,7 +398,7 @@ export default function Home() {
            )}
         </div>
       </header>
-      <main className="flex-1 flex flex-col items-center px-4 pt-8">
+      <main className="flex-1 flex flex-col items-center px-4 pt-4 md:pt-8">
         <div className="w-full max-w-2xl mx-auto flex-1 flex flex-col">
           <div className="flex-grow space-y-6">
             {generatedMessages.length === 0 && !isGenerating && (
@@ -407,8 +407,8 @@ export default function Home() {
                     <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
                  ) : (
                   <>
-                    <h2 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
-                      Crie textos prontos de vendas para WhatsApp personalizados para seu negócio.
+                    <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+                      Crie textos de vendas para WhatsApp para o seu negócio.
                     </h2>
                     {user && userProfile && userProfile.plan === 'free' && (
                       <p className="mt-4 text-muted-foreground">
@@ -439,7 +439,7 @@ export default function Home() {
               ))}
           </div>
 
-          <div className="sticky bottom-0 bg-background/80 backdrop-blur-sm py-8 mt-12">
+          <div className="sticky bottom-0 bg-background/80 backdrop-blur-sm py-4 md:py-8 mt-8">
             <Form {...form}>
               <form
                 onSubmit={form.handleSubmit(onSubmit)}
@@ -449,7 +449,7 @@ export default function Home() {
                   <FormField control={form.control} name="salesTag" render={({ field }) => (
                       <FormItem className="flex-shrink-0">
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl><SelectTrigger className="bg-neutral-100 border-none shadow-sm pr-8 text-neutral-600"><SelectValue /></SelectTrigger></FormControl>
+                          <FormControl><SelectTrigger className="bg-neutral-100 border-none shadow-sm pr-8 text-neutral-600 w-auto text-xs sm:text-sm"><SelectValue /></SelectTrigger></FormControl>
                           <SelectContent>{salesTags.map(tag => <SelectItem key={tag.value} value={tag.value}>{tag.label}</SelectItem>)}</SelectContent>
                         </Select>
                       </FormItem>
@@ -459,8 +459,8 @@ export default function Home() {
                       <FormItem className="flex-grow ml-2">
                         <FormControl>
                           <TextareaAutosize
-                            placeholder="Escreva sobre seu negócio aqui"
-                            className="w-full bg-transparent border-none focus:outline-none focus:ring-0 resize-none text-base placeholder:text-neutral-400 leading-tight py-2"
+                            placeholder="Escreva sobre seu negócio"
+                            className="w-full bg-transparent border-none focus:outline-none focus:ring-0 resize-none text-sm sm:text-base placeholder:text-neutral-400 leading-tight py-2"
                             minRows={1} maxRows={5} {...field}
                             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.handleSubmit(onSubmit)(); }}}
                           />
