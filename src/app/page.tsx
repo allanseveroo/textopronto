@@ -452,7 +452,7 @@ export default function Home() {
                 onSubmit={form.handleSubmit(onSubmit)} 
                 className="sticky bottom-0 bg-white/80 backdrop-blur-sm pt-2 pb-4 md:pt-4 md:pb-6 mt-auto space-y-3"
               >
-                  <div className="flex justify-center">
+                  <div className="flex justify-start">
                     <FormField
                       control={form.control}
                       name="salesTag"
@@ -543,5 +543,7 @@ export default function Home() {
       </footer>
     </div>
   );
+
+    
 
     
