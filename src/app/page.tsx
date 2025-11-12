@@ -422,33 +422,6 @@ export default function Home() {
                   )}
                 </div>
               )}
-               <div className="w-full pb-4">
-                 <FormField
-                  control={form.control}
-                  name="salesTag"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-sm font-medium text-foreground/80">Selecione um tipo de mensagem:</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger className="w-full sm:w-auto">
-                            <SelectValue placeholder="Selecione..." />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {salesTags.map(tag => (
-                            <SelectItem key={tag.value} value={tag.value}>
-                              {tag.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-               </div>
-
 
               {isGenerating && (
                 <Card className="text-left max-w-2xl mx-auto bg-card shadow-lg">
@@ -476,8 +449,32 @@ export default function Home() {
               ))}
             </div>
 
-            <div className="sticky bottom-0 bg-white/80 backdrop-blur-sm py-4 md:py-6 mt-auto">
-              <div className="space-y-4">
+            <div className="sticky bottom-0 bg-white/80 backdrop-blur-sm pt-2 pb-4 md:pt-4 md:pb-6 mt-auto">
+                <div className="pb-3 px-1">
+                  <FormField
+                    control={form.control}
+                    name="salesTag"
+                    render={({ field }) => (
+                      <FormItem>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger className="w-auto h-auto px-3 py-1 text-xs rounded-full border-zinc-200 bg-zinc-100/80">
+                              <SelectValue placeholder="Selecione..." />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {salesTags.map(tag => (
+                              <SelectItem key={tag.value} value={tag.value}>
+                                {tag.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                   <FormField
                       control={form.control}
@@ -519,7 +516,6 @@ export default function Home() {
                       )}
                   />
                 </form>
-              </div>
             </div>
           </Form>
         </div>
