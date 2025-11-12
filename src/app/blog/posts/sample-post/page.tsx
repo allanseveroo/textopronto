@@ -1,10 +1,11 @@
 import { ArrowLeft } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { Button } from '@/components/ui/button';
 
 export const metadata: Metadata = {
-    title: '5 Dicas para Vender Mais no WhatsApp | Blog TextoPronto',
-    description: 'Aprenda 5 dicas práticas para aumentar suas vendas utilizando o WhatsApp como ferramenta de comunicação e vendas.',
+    title: 'O que é o TextoPronto? A Ferramenta de IA que Multiplica suas Vendas no WhatsApp | Blog TextoPronto',
+    description: 'Descubra o que é o TextoPronto, a plataforma de IA que gera textos de vendas humanizados para WhatsApp. Pare de perder tempo e clientes. Saiba como funciona.',
 };
 
 export default function SamplePostPage() {
@@ -14,40 +15,107 @@ export default function SamplePostPage() {
             <ArrowLeft className="h-4 w-4 mr-2" />
             Voltar para o blog
         </Link>
-      <h1 className='text-4xl font-extrabold tracking-tight lg:text-5xl'>5 Dicas Infalíveis para Vender Mais no WhatsApp</h1>
+      <h1 className='text-4xl font-extrabold tracking-tight lg:text-5xl'>O que é o TextoPronto? A Ferramenta de IA que Multiplica suas Vendas no WhatsApp</h1>
       <p className="lead text-xl text-muted-foreground">
-        O WhatsApp se tornou uma ferramenta indispensável para negócios de todos os tamanhos. Se você ainda não está aproveitando todo o potencial dele, está perdendo vendas.
+        Você já passou por isso: um cliente potencial chama no WhatsApp, pergunta o preço do seu produto e, depois da sua resposta, desaparece. Ou pior: você gasta dez, quinze minutos escrevendo a mensagem de abordagem perfeita, e o cliente nem sequer visualiza.
       </p>
 
-      <h2>1. Crie um Perfil Comercial Atraente</h2>
       <p>
-        Sua primeira impressão conta muito. Use uma foto de perfil profissional, adicione seu horário de atendimento, endereço e um link para seu site. Uma descrição clara e objetiva do que você faz ajuda o cliente a entender seu negócio imediatamente.
+        No mundo das vendas pelo WhatsApp, velocidade e persuasão não são diferenciais; são requisitos básicos para a sobrevivência.
       </p>
 
-      <h2>2. Use as Listas de Transmissão com Sabedoria</h2>
       <p>
-        Listas de transmissão são ótimas para enviar promoções e novidades, mas evite o spam. Segmente seus contatos e envie mensagens relevantes para cada grupo. Ninguém gosta de receber mensagens que não lhe interessam. Use o bom senso.
+        O problema é que a maioria dos vendedores trava. Eles não sabem exatamente o que dizer, como quebrar uma objeção ou como fazer um follow-up sem parecerem chatos. Esse "bloqueio criativo" custa vendas todos os dias.
       </p>
 
-      <h2>3. Responda Rápido</h2>
+       <p>É exatamente para resolver esse gargalo que surgiu o TextoPronto.</p>
+       
+       <p>Se você ouviu falar dessa ferramenta e quer saber exatamente o que ela faz, como funciona e se ela pode realmente ajudar seu negócio, este artigo é o seu guia definitivo.</p>
+
+      <h2>O que é o TextoPronto, Exatamente?</h2>
       <p>
-        No mundo digital, a velocidade é tudo. Configure mensagens automáticas de saudação e ausência, mas sempre que possível, dê um atendimento personalizado e rápido. Clientes que esperam muito tempo por uma resposta podem acabar comprando do concorrente.
+        O TextoPronto não é um simples bloco de notas ou um banco de textos genéricos que você encontra em qualquer lugar.
       </p>
-
-       <h2>4. Facilite o Pagamento</h2>
       <p>
-        Não dificulte a vida do cliente na hora de pagar. Ofereça links de pagamento de plataformas conhecidas (Mercado Pago, PagSeguro), PIX, ou até mesmo o WhatsApp Pay. Quanto mais fácil for o processo, menor a chance de abandono de carrinho.
+        <strong>O TextoPronto é uma ferramenta de Inteligência Artificial</strong> projetada especificamente para o cenário de vendas do WhatsApp. Ele funciona como um assistente de vendas pessoal que gera, em segundos, mensagens persuasivas, humanizadas e adaptadas para qualquer situação da sua conversa.
       </p>
-
-      <h2>5. Peça Feedback e Construa Relacionamentos</h2>
       <p>
-        O pós-venda é tão importante quanto a venda. Alguns dias após a compra, envie uma mensagem perguntando o que o cliente achou do produto e do atendimento. Isso mostra que você se importa e ajuda a construir um relacionamento duradouro, incentivando novas compras no futuro.
+        Em vez de você parar, pensar, escrever, apagar e reescrever, você simplesmente descreve o cenário para a IA, e ela entrega opções de textos prontos para copiar, colar e converter.
       </p>
+      <p>O foco da ferramenta é duplo:</p>
+      <ul className="list-disc pl-6">
+        <li><strong>Economizar seu tempo:</strong> Elimina o tempo gasto pensando no que responder.</li>
+        <li><strong>Aumentar sua conversão:</strong> Garante que cada mensagem enviada use técnicas de persuasão e gatilhos mentais validados.</li>
+      </ul>
 
-       <div className="mt-12 border-t pt-8">
-            <p className="text-sm text-gray-500">
-                Gostou das dicas? Comece a aplicá-las hoje mesmo e veja suas vendas crescerem!
-            </p>
+      <h2>Como o TextoPronto Funciona na Prática?</h2>
+      <p>
+        A maior vantagem do TextoPronto é a sua simplicidade. Você não precisa entender de tecnologia ou de persuasão para usá-lo. O processo é direto:
+      </p>
+      
+      <h3>Passo 1: Descreva o Contexto</h3>
+      <p>Você acessa a plataforma e informa o que precisa. Em vez de pedir algo genérico, você dá o contexto exato da sua necessidade.</p>
+      <blockquote className="border-l-4 border-primary pl-4 italic">
+        <p><strong>Exemplo 1:</strong> "Preciso de um texto de abordagem fria para um cliente que veio do Instagram."</p>
+        <p><strong>Exemplo 2:</strong> "O cliente disse 'vou pensar' depois que eu passei o preço."</p>
+        <p><strong>Exemplo 3:</strong> "O cliente sumiu há 3 dias. Quero fazer um follow-up leve."</p>
+      </blockquote>
+      
+      <h3>Passo 2: A IA Gera as Opções</h3>
+      <p>Em menos de 5 segundos, a Inteligência Artificial do TextoPronto analisa seu pedido. Por ser uma IA treinada especificamente para vendas (e não uma IA genérica como o ChatGPT), ela entende as nuances de uma conversa no WhatsApp.</p>
+      <p>Ela sabe que o texto precisa ser:</p>
+       <ul className="list-disc pl-6">
+        <li>Curto e direto.</li>
+        <li>Humanizado (sem parecer um robô).</li>
+        <li>Persuasivo (com foco em levar o cliente ao próximo passo).</li>
+      </ul>
+
+      <h3>Passo 3: Copie, Cole e Venda</h3>
+      <p>A ferramenta entrega algumas variações da mensagem. Você escolhe a que mais se encaixa no seu tom de voz, copia o texto e cola diretamente na sua conversa do WhatsApp.</p>
+      <p>O que antes levava 10 minutos de ansiedade, agora leva 10 segundos de eficiência.</p>
+
+       <h2>Para Quem o TextoPronto é Indicado?</h2>
+       <p>O TextoPronto foi desenhado para qualquer pessoa que use o WhatsApp como ferramenta principal ou secundária de vendas. Se você precisa convencer alguém a comprar algo pelo aplicativo, a ferramenta serve para você.</p>
+       <p>Isso inclui:</p>
+        <ul className="list-disc pl-6">
+            <li><strong>Lojistas (E-commerce e Físico):</strong> Que recebem dezenas de contatos por dia perguntando sobre produtos, frete e preços.</li>
+            <li><strong>Afiliados e Infoprodutores:</strong> Que precisam abordar leads, quebrar objeções sobre cursos e fazer remarketing.</li>
+            <li><strong>Vendedores Autônomos e Freelancers:</strong> Que prospectam ativamente e precisam de agilidade nas negociações.</li>
+            <li><strong>Prestadores de Serviço:</strong> (Consultores, designers, terapeutas, etc.) Que precisam vender seu peixe e agendar clientes.</li>
+            <li><strong>Equipes de Vendas (Closer e SDR):</strong> Que precisam padronizar a comunicação e aumentar a produtividade do time.</li>
+        </ul>
+
+      <h2>Erros Comuns que o TextoPronto Ajuda a Evitar</h2>
+      <p>Muitas vendas são perdidas não pelo produto ou pelo preço, mas por erros simples na comunicação. O TextoPronto atua como um "corretor" de abordagem, impedindo que você cometa essas falhas:</p>
+        <ul className="list-disc pl-6">
+            <li><strong>Soar Robótico:</strong> O maior erro de quem usa scripts prontos é soar como um telemarketing. A IA do TextoPronto foca em linguagem natural e fluida.</li>
+            <li><strong>Ser "Textão":</strong> Ninguém lê blocos gigantes de texto no WhatsApp. A ferramenta gera mensagens curtas e escaneáveis.</li>
+            <li><strong>Demorar para Responder:</strong> O cliente de WhatsApp é imediato. Se você demora 1 hora para responder, ele já comprou do concorrente. O TextoPronto permite respostas instantâneas e de qualidade.</li>
+            <li><strong>Ser Passivo (Não ter CTA):</strong> Muitos vendedores terminam a mensagem com "Qualquer dúvida, estou à disposição". Isso não vende. O TextoPronto sempre sugere mensagens que terminam com uma pergunta ou um comando, guiando o cliente para a próxima ação.</li>
+        </ul>
+
+      <h2>Estratégias Práticas: Quando Usar o TextoPronto?</h2>
+      <p>O TextoPronto não serve apenas para o primeiro contato. Ele cobre todo o funil de vendas dentro da conversa:</p>
+      <ul className="list-disc pl-6">
+        <li><strong>Abordagem e Prospecção:</strong> Como iniciar a conversa com um lead frio ou alguém que veio de um anúncio.</li>
+        <li><strong>Qualificação:</strong> Perguntas certas para entender a dor do cliente antes de oferecer o produto.</li>
+        <li><strong>Quebra de Objeções:</strong> Respostas validadas para o clássico "Está caro", "Vou falar com meu marido" ou "Vou pensar".</li>
+        <li><strong>Follow-Up:</strong> Como reaquecer um cliente que parou de responder sem ser inconveniente.</li>
+        <li><strong>Fechamento:</strong> As frases exatas para pedir os dados de pagamento e conduzir o fechamento.</li>
+        <li><strong>Pós-Venda:</strong> Mensagens para fidelizar o cliente, pedir depoimentos ou oferecer um upsell.</li>
+      </ul>
+
+      <h2>Conclusão: O Fim do Bloqueio Criativo nas Vendas</h2>
+      <p>O TextoPronto é, em resumo, um acelerador de conversões.</p>
+      <p>Ele elimina o maior gargalo de quem vende online: a dúvida do que escrever. Ele coloca nas suas mãos o poder da persuasão de resposta direta, sem que você precise estudar o assunto por anos.</p>
+      <p>Se você sente que seu processo de vendas no WhatsApp é lento, se você perde clientes por demorar a responder ou por não saber quebrar objeções, esta ferramenta foi desenhada para você. Ela devolve seu tempo e coloca dinheiro no seu bolso ao transformar conversas travadas em vendas concluídas.</p>
+
+       <div className="mt-12 not-prose rounded-lg border bg-card text-card-foreground shadow-sm p-6 text-center">
+            <h3 className="text-2xl font-bold">Chega de perder vendas por não saber o que dizer.</h3>
+            <p className="mt-2 text-muted-foreground">Está na hora de deixar a Inteligência Artificial trabalhar para você e transformar seu WhatsApp em uma máquina de vendas previsível.</p>
+            <Button asChild className="mt-6" size="lg">
+                <Link href="/">Experimente o TextoPronto agora!</Link>
+            </Button>
        </div>
     </article>
   );

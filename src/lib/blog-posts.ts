@@ -6,8 +6,8 @@ export type BlogPost = {
 
 export const blogPosts: BlogPost[] = [
   {
-    title: '5 Dicas Infalíveis para Vender Mais no WhatsApp',
-    description: 'Aprenda 5 dicas práticas e essenciais para alavancar suas vendas usando o WhatsApp de forma estratégica.',
+    title: 'O que é o TextoPronto? A Ferramenta de IA para Vendas no WhatsApp',
+    description: 'Descubra como a IA do TextoPronto gera textos de vendas humanizados e pare de perder tempo e clientes.',
     slug: 'sample-post',
   },
   // Adicione novas postagens aqui
