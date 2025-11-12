@@ -132,8 +132,8 @@ export default function Home() {
   const fetchUserProfile = useCallback(async (uid: string) => {
     if (!firestore) return;
     setIsProfileLoading(true);
+    const docRef = doc(firestore, 'users', uid);
     try {
-      const docRef = doc(firestore, 'users', uid);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
         const profile = docSnap.data() as UserProfile;
@@ -144,27 +144,31 @@ export default function Home() {
         return null;
       }
     } catch (error) {
-      console.error("Error fetching user profile:", error);
-      toast({ variant: 'destructive', title: 'Erro ao buscar perfil.' });
+       errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: docRef.path,
+        operation: 'get'
+      }));
       return null;
     } finally {
       setIsProfileLoading(false);
     }
-  }, [firestore, toast]);
+  }, [firestore]);
 
   const fetchMessages = useCallback(async (uid: string) => {
       if (!firestore) return;
+      const messagesRef = collection(firestore, 'users', uid, 'messages');
       try {
-          const messagesRef = collection(firestore, 'users', uid, 'messages');
           const q = query(messagesRef, orderBy('createdAt', 'desc'));
           const querySnapshot = await getDocs(q);
           const messages = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GeneratedMessage));
           setGeneratedMessages(messages);
       } catch (error) {
-          console.error("Error fetching messages:", error);
-          toast({ variant: 'destructive', title: 'Erro ao buscar mensagens.' });
+          errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: messagesRef.path,
+            operation: 'list'
+          }));
       }
-  }, [firestore, toast]);
+  }, [firestore]);
 
 
   useEffect(() => {
@@ -183,28 +187,39 @@ export default function Home() {
     if (!firestore || !currentUser.email) return null;
   
     const docRef = doc(firestore, 'users', currentUser.uid);
-    const docSnap = await getDoc(docRef);
-  
-    if (docSnap.exists()) {
-      return docSnap.data() as UserProfile;
-    } else {
-      try {
+    
+    try {
+      const docSnap = await getDoc(docRef);
+    
+      if (docSnap.exists()) {
+        return docSnap.data() as UserProfile;
+      } else {
         const newProfile: UserProfile = {
           userId: currentUser.uid,
           email: currentUser.email,
           plan: 'free',
           messageCount: 0,
         };
-        await setDoc(docRef, newProfile);
+        // Use a .catch block for permission errors during creation
+        await setDoc(docRef, newProfile).catch(() => {
+          errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: docRef.path,
+            operation: 'create',
+            requestResourceData: newProfile
+          }));
+        });
         return newProfile;
-      } catch (error) {
-        console.error('Error creating user profile:', error);
-        toast({ variant: 'destructive', title: 'Erro ao criar perfil de usuário.' });
-        return null;
       }
+    } catch (error) {
+      // This will catch read errors (getDoc)
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: docRef.path,
+        operation: 'get'
+      }));
+      return null;
     }
   };
-
+  
   const runGeneration = async (values: z.infer<typeof formSchema>) => {
     if (!user || !firestore) {
       toast({ variant: 'destructive', title: 'Erro', description: 'Usuário não autenticado. Por favor, faça login novamente.' });
@@ -214,14 +229,24 @@ export default function Home() {
     const userProfileRef = doc(firestore, 'users', user.uid);
     
     startTransition(async () => {
-      const latestProfileSnap = await getDoc(userProfileRef);
+      let latestProfile: UserProfile | null = null;
+      try {
+        const latestProfileSnap = await getDoc(userProfileRef);
+        if (latestProfileSnap.exists()) {
+          latestProfile = latestProfileSnap.data() as UserProfile;
+        }
+      } catch (error) {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: userProfileRef.path,
+          operation: 'get'
+        }));
+        return; // Stop execution if profile can't be read
+      }
 
-      if (!latestProfileSnap.exists()) {
+      if (!latestProfile) {
           toast({ variant: 'destructive', title: 'Erro', description: 'Perfil de usuário não encontrado. Tente novamente.' });
           return;
       }
-
-      const latestProfile = latestProfileSnap.data() as UserProfile;
 
       if (latestProfile.plan === 'free' && latestProfile.messageCount >= FREE_PLAN_LIMIT) {
         toast({
@@ -300,19 +325,21 @@ export default function Home() {
       
       setIsProfileLoading(true);
       const profile = await manageUserProfile(currentUser);
-      setUserProfile(profile);
-
+      
       if (profile) {
-        await fetchMessages(currentUser.uid);
+        setUserProfile(profile);
+        await fetchMessages(currentUser.uid); // Fetch messages after successful profile management
       }
       
       setIsProfileLoading(false);
       setIsLoginModalOpen(false);
 
+      // If there was a pending generation, run it now
       if (formValuesRef.current) {
         runGeneration(formValuesRef.current);
-        formValuesRef.current = null;
+        formValuesRef.current = null; // Clear the ref
       }
+
     } catch (error: any) {
       if (error.code !== 'auth/popup-closed-by-user' && error.code !== 'auth/cancelled-popup-request') {
         console.error('Error signing in with Google', error);
