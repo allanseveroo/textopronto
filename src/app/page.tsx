@@ -39,9 +39,9 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { useAuth, useUser, useFirestore } from '@/firebase'; 
+import { useAuth, useUser, useFirestore, errorEmitter, FirestorePermissionError } from '@/firebase'; 
 import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, increment, collection, getDocs, query, orderBy, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, increment, collection, getDocs, query, orderBy, serverTimestamp, Timestamp, writeBatch } from 'firebase/firestore';
 
 const formSchema = z.object({
   salesTag: z.string().default('Saudação'),
@@ -136,8 +136,9 @@ export default function Home() {
       const docRef = doc(firestore, 'users', uid);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
-        setUserProfile(docSnap.data() as UserProfile);
-        return docSnap.data() as UserProfile;
+        const profile = docSnap.data() as UserProfile;
+        setUserProfile(profile);
+        return profile;
       } else {
         setUserProfile(null);
         return null;
@@ -211,48 +212,68 @@ export default function Home() {
     }
 
     const userProfileRef = doc(firestore, 'users', user.uid);
-    const latestProfileSnap = await getDoc(userProfileRef);
-
-    if (!latestProfileSnap.exists()) {
-        toast({ variant: 'destructive', title: 'Erro', description: 'Perfil de usuário não encontrado. Tente novamente.' });
-        return;
-    }
-
-    const latestProfile = latestProfileSnap.data() as UserProfile;
-
-    if (latestProfile.plan === 'free' && latestProfile.messageCount >= FREE_PLAN_LIMIT) {
-      toast({
-        variant: 'destructive',
-        title: 'Limite Atingido',
-        description: 'Você atingiu o limite de mensagens do plano gratuito.',
-      });
-      return;
-    }
-
+    
     startTransition(async () => {
+      const latestProfileSnap = await getDoc(userProfileRef);
+
+      if (!latestProfileSnap.exists()) {
+          toast({ variant: 'destructive', title: 'Erro', description: 'Perfil de usuário não encontrado. Tente novamente.' });
+          return;
+      }
+
+      const latestProfile = latestProfileSnap.data() as UserProfile;
+
+      if (latestProfile.plan === 'free' && latestProfile.messageCount >= FREE_PLAN_LIMIT) {
+        toast({
+          variant: 'destructive',
+          title: 'Limite Atingido',
+          description: 'Você atingiu o limite de mensagens do plano gratuito.',
+        });
+        return;
+      }
+
       try {
         const result = await generateWhatsAppMessage({
           salesTag: values.salesTag,
           nicheDetails: values.nicheDetails,
         });
-        
+
         const messagesRef = collection(firestore, 'users', user.uid, 'messages');
         const newMessageDoc = doc(messagesRef);
 
-        const newMessage: Omit<GeneratedMessage, 'id'> = {
+        const newMessageData = {
           message: result.message,
           salesTag: values.salesTag,
-          createdAt: serverTimestamp() as Timestamp,
+          createdAt: serverTimestamp(),
         };
 
-        await setDoc(newMessageDoc, newMessage);
+        const batch = writeBatch(firestore);
+
+        batch.set(newMessageDoc, newMessageData);
+        batch.update(userProfileRef, { messageCount: increment(1) });
         
-        // Use a client-side timestamp for immediate UI update
-        const finalMessage = { ...newMessage, id: newMessageDoc.id, createdAt: new Timestamp(Date.now() / 1000, 0) };
+        await batch.commit().catch(error => {
+            // Emitting a contextual error for the batch write
+            errorEmitter.emit(
+              'permission-error',
+              new FirestorePermissionError({
+                path: `batch write to /users/${user.uid} and /users/${user.uid}/messages`,
+                operation: 'write', 
+                requestResourceData: {
+                  newMessage: newMessageData,
+                  profileUpdate: { messageCount: 'increment(1)'}
+                },
+              })
+            );
+        });
 
+        const finalMessage: GeneratedMessage = {
+          ...newMessageData,
+          id: newMessageDoc.id,
+          createdAt: new Timestamp(Date.now() / 1000, 0),
+        };
+        
         setGeneratedMessages(prev => [finalMessage, ...prev]);
-
-        await updateDoc(userProfileRef, { messageCount: increment(1) });
 
         // Optimistically update local profile state
         setUserProfile(prev => prev ? { ...prev, messageCount: prev.messageCount + 1 } : null);
@@ -260,14 +281,18 @@ export default function Home() {
         form.reset({ salesTag: values.salesTag, nicheDetails: '' });
 
       } catch (error: any) {
-        console.error('Failed to generate message:', error);
-        toast({ variant: 'destructive', title: 'Erro', description: error.message || 'Ocorreu um problema com a IA.' });
+        // This will catch errors from generateWhatsAppMessage or other unexpected issues.
+        // Permission errors from Firestore are handled by the .catch() on the commit.
+        if (!error.name.includes('FirebaseError')) {
+          console.error('Failed to generate message:', error);
+          toast({ variant: 'destructive', title: 'Erro', description: error.message || 'Ocorreu um problema com a IA.' });
+        }
       }
     });
   };
 
   const handleSignIn = async () => {
-    if (!auth) return;
+    if (!auth || !firestore) return;
     const provider = new GoogleAuthProvider();
     try {
       const result = await signInWithPopup(auth, provider);
@@ -275,18 +300,16 @@ export default function Home() {
       
       setIsProfileLoading(true);
       const profile = await manageUserProfile(currentUser);
-      
-      // Update UI immediately
       setUserProfile(profile);
-      await fetchMessages(currentUser.uid);
-      setIsProfileLoading(false);
 
+      if (profile) {
+        await fetchMessages(currentUser.uid);
+      }
+      
+      setIsProfileLoading(false);
       setIsLoginModalOpen(false);
 
       if (formValuesRef.current) {
-        // Need to wait for the `user` state from useUser to propagate before running generation
-        // A small delay or a more complex state management might be needed if issues persist.
-        // For now, let's proceed, as the main `user` state update should be quick.
         runGeneration(formValuesRef.current);
         formValuesRef.current = null;
       }
