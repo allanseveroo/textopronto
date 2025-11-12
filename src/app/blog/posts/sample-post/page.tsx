@@ -8,8 +8,35 @@ export const metadata: Metadata = {
     description: 'Descubra o que é o TextoPronto, a plataforma de IA que gera textos de vendas humanizados para WhatsApp. Pare de perder tempo e clientes. Saiba como funciona.',
 };
 
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'BlogPosting',
+  headline: 'O que é o TextoPronto? A Ferramenta de IA que Multiplica suas Vendas no WhatsApp',
+  description: 'Descubra o que é o TextoPronto, a plataforma de IA que gera textos de vendas humanizados para WhatsApp. Pare de perder tempo e clientes. Saiba como funciona.',
+  image: 'https://textopronto.com/og-image.png', // URL da imagem principal do artigo
+  author: {
+    '@type': 'Organization',
+    name: 'Revizap',
+  },
+  publisher: {
+    '@type': 'Organization',
+    name: 'TextoPronto',
+    logo: {
+      '@type': 'ImageObject',
+      url: 'https://textopronto.com/logo.png', // URL do logo
+    },
+  },
+  datePublished: '2024-05-21', // Use a data de publicação real
+};
+
+
 export default function SamplePostPage() {
   return (
+    <>
+    <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+    />
     <article className="prose prose-lg max-w-4xl mx-auto">
         <Link href="/blog" className="flex items-center text-primary hover:underline mb-8 no-underline">
             <ArrowLeft className="h-4 w-4 mr-2" />
@@ -118,5 +145,6 @@ export default function SamplePostPage() {
             </Button>
        </div>
     </article>
+    </>
   );
 }

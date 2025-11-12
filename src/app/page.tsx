@@ -364,9 +364,26 @@ export default function Home() {
   }
 
   const isLoading = isAuthLoading || isProfileLoading;
+  
+  const siteUrl = "https://textopronto.com";
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: 'TextoPronto',
+    url: siteUrl,
+    potentialAction: {
+      '@type': 'SearchAction',
+      target: `${siteUrl}/?q={search_term_string}`,
+      'query-input': 'required name=search_term_string',
+    },
+  };
 
   return (
     <div className="flex flex-col min-h-screen font-sans bg-white">
+       <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
        <header className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
           <h1 className="text-2xl font-bold text-foreground">TextoPronto</h1>

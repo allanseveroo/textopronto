@@ -69,19 +69,6 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  
-  // Schema JSON-LD completo
-  const jsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'WebSite',
-    name: 'TextoPronto',
-    url: siteUrl,
-    potentialAction: {
-      '@type': 'SearchAction',
-      target: `${siteUrl}/?q={search_term_string}`,
-      'query-input': 'required name=search_term_string',
-    },
-  };
 
   return (
     <html lang="pt-BR">
@@ -89,10 +76,6 @@ export default function RootLayout({
         {/* Usa Inter via preconnect (melhor desempenho) */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <script
-            type="application/ld+json"
-            dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-        />
       </head>
       <body className={inter.className}>
         <FirebaseClientProvider>
