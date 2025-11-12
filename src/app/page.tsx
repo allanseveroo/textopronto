@@ -23,6 +23,7 @@ import {
   FormField,
   FormItem,
   FormMessage,
+  FormLabel,
 } from '@/components/ui/form';
 import {
   Select,
@@ -378,8 +379,6 @@ export default function Home() {
     },
   };
 
-  const selectedTag = form.watch('salesTag');
-
   return (
     <div className="flex flex-col min-h-screen font-sans bg-white">
        <script
@@ -402,36 +401,71 @@ export default function Home() {
       </header>
       <main className="flex-1 flex flex-col items-center px-4 pt-4 md:pt-8">
         <div className="w-full max-w-2xl mx-auto flex-1 flex flex-col">
-          <div className="flex-grow space-y-4 md:space-y-6 pb-4">
-            {generatedMessages.length === 0 && !isGenerating && (
-              <div className="text-center pt-8 md:pt-0">
-                 {isLoading ? (
-                    <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
-                 ) : (
-                  <>
-                    <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-                      Crie textos de vendas para WhatsApp para o seu negócio.
-                    </h2>
-                    {user && userProfile && userProfile.plan === 'free' && (
-                      <p className="mt-4 text-muted-foreground">
-                        Você usou {userProfile.messageCount} de {FREE_PLAN_LIMIT} mensagens do seu plano gratuito.
-                      </p>
-                    )}
-                  </>
-                 )}
-              </div>
-            )}
-            
-            {isGenerating && (
-              <Card className="text-left max-w-2xl mx-auto bg-card shadow-lg">
-                <CardHeader><CardTitle className="font-bold text-lg">Gerando sua mensagem...</CardTitle></CardHeader>
-                <CardContent><div className="space-y-3 pt-2">
-                  <div className="bg-muted animate-pulse h-4 w-full rounded-md" /><div className="bg-muted animate-pulse h-4 w-5/6 rounded-md" /><div className="bg-muted animate-pulse h-4 w-full rounded-md" /><div className="bg-muted animate-pulse h-4 w-3/4 rounded-md" />
-                </div></CardContent>
-              </Card>
-            )}
+          <Form {...form}>
+            <div className="flex-grow space-y-4 md:space-y-6 pb-4">
+              <FormField
+                control={form.control}
+                name="salesTag"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs font-semibold text-zinc-500 uppercase">
+                      1. Escolha o tipo de mensagem
+                    </FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o tipo de mensagem que você precisa" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {salesTags.map(tag => (
+                          <SelectItem key={tag.value} value={tag.value}>
+                            {tag.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            {generatedMessages.map((msg, i) => (
+              {generatedMessages.length === 0 && !isGenerating && (
+                <div className="text-center pt-8 md:pt-0">
+                  {isLoading ? (
+                    <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
+                  ) : (
+                    <>
+                      <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+                        Crie textos de vendas para WhatsApp para o seu negócio.
+                      </h2>
+                      {user && userProfile && userProfile.plan === 'free' && (
+                        <p className="mt-4 text-muted-foreground">
+                          Você usou {userProfile.messageCount} de {FREE_PLAN_LIMIT} mensagens do seu plano gratuito.
+                        </p>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {isGenerating && (
+                <Card className="text-left max-w-2xl mx-auto bg-card shadow-lg">
+                  <CardHeader>
+                    <CardTitle className="font-bold text-lg">Gerando sua mensagem...</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3 pt-2">
+                      <div className="bg-muted animate-pulse h-4 w-full rounded-md" />
+                      <div className="bg-muted animate-pulse h-4 w-5/6 rounded-md" />
+                      <div className="bg-muted animate-pulse h-4 w-full rounded-md" />
+                      <div className="bg-muted animate-pulse h-4 w-3/4 rounded-md" />
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {generatedMessages.map((msg, i) => (
                 <GeneratedMessageCard
                   key={msg.id}
                   message={msg.message}
@@ -439,50 +473,57 @@ export default function Home() {
                   index={generatedMessages.length - i}
                 />
               ))}
-          </div>
+            </div>
 
-          <div className="sticky bottom-0 bg-background/80 backdrop-blur-sm py-4 md:py-8 mt-8">
-            <Form {...form}>
-              <form
-                onSubmit={form.handleSubmit(onSubmit)}
-                className="relative w-full max-w-2xl mx-auto bg-white p-2 shadow-[0_4px_16px_rgba(0,0,0,0.05)] border rounded-xl overflow-hidden"
-              >
-                <div className="flex items-center">
-                  <FormField control={form.control} name="salesTag" render={({ field }) => (
-                      <FormItem className="flex-shrink-0">
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger className="bg-neutral-100 border-none shadow-sm text-neutral-600 w-auto text-xs sm:text-sm sm:w-auto sm:pr-8">
-                                <span className='sm:hidden'>{salesTags.find(t => t.value === selectedTag)?.label.split(' ')[0]}</span>
-                                <span className='hidden sm:inline'><SelectValue /></span>
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>{salesTags.map(tag => <SelectItem key={tag.value} value={tag.value}>{tag.label}</SelectItem>)}</SelectContent>
-                        </Select>
-                      </FormItem>
-                    )}/>
-
-                  <FormField control={form.control} name="nicheDetails" render={({ field }) => (
-                      <FormItem className="flex-grow ml-2">
+            <div className="sticky bottom-0 bg-white/80 backdrop-blur-sm py-4 md:py-6 mt-auto">
+              <div className="space-y-4">
+                <form onSubmit={form.handleSubmit(onSubmit)} className="relative w-full">
+                  <FormField
+                    control={form.control}
+                    name="nicheDetails"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs font-semibold text-zinc-500 uppercase">
+                          2. Descreva seu produto ou negócio
+                        </FormLabel>
                         <FormControl>
-                          <TextareaAutosize
-                            placeholder="Escreva sobre seu negócio"
-                            className="w-full bg-transparent border-none focus:outline-none focus:ring-0 resize-none text-sm sm:text-base placeholder:text-neutral-400 leading-tight py-2"
-                            minRows={1} maxRows={5} {...field}
-                            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.handleSubmit(onSubmit)(); }}}
-                          />
+                          <div className="relative">
+                            <TextareaAutosize
+                              placeholder="Ex: Vendo um curso de inglês online para iniciantes por R$997"
+                              className="w-full bg-zinc-100 border-zinc-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none text-sm sm:text-base placeholder:text-neutral-400 leading-tight p-4 pr-14"
+                              minRows={2}
+                              maxRows={5}
+                              {...field}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                  e.preventDefault();
+                                  form.handleSubmit(onSubmit)();
+                                }
+                              }}
+                            />
+                            <Button
+                              type="submit"
+                              size="icon"
+                              className="absolute right-3 bottom-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg w-9 h-9"
+                              disabled={isGenerating || isLoading}
+                            >
+                              {isGenerating ? (
+                                <Loader2 className="h-5 w-5 animate-spin" />
+                              ) : (
+                                <ArrowUp className="h-5 w-5" />
+                              )}
+                              <span className="sr-only">Gerar</span>
+                            </Button>
+                          </div>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
-                    )}/>
-                  <Button type="submit" size="icon" className="ml-2 bg-emerald-500 hover:bg-emerald-600 text-white flex-shrink-0 rounded-lg" disabled={isGenerating || isLoading}>
-                    {isGenerating ? <Loader2 className="h-5 w-5 animate-spin" /> : <ArrowUp className="h-5 w-5" />}
-                    <span className="sr-only">Gerar</span>
-                  </Button>
-                </div>
-              </form>
-            </Form>
-          </div>
+                    )}
+                  />
+                </form>
+              </div>
+            </div>
+          </Form>
         </div>
       </main>
 
