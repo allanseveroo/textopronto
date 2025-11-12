@@ -1,0 +1,20 @@
+# Docker files
+Dockerfile
+.dockerignore
+
+# Git
+.git
+.gitignore
+
+# Node modules
+node_modules
+
+# Next.js build output
+.next
+
+# Local environment files
+.env.local
+*.log
+
+# Vercel config
+.vercel
