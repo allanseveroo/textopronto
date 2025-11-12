@@ -32,7 +32,7 @@ export default function SamplePostPage() {
        
        <p>Se você ouviu falar dessa ferramenta e quer saber exatamente o que ela faz, como funciona e se ela pode realmente ajudar seu negócio, este artigo é o seu guia definitivo.</p>
 
-      <h2>O que é o TextoPronto, Exatamente?</h2>
+      <h2 className="text-[28px]">O que é o TextoPronto, Exatamente?</h2>
       <p>
         O TextoPronto não é um simples bloco de notas ou um banco de textos genéricos que você encontra em qualquer lugar.
       </p>
@@ -48,12 +48,12 @@ export default function SamplePostPage() {
         <li><strong>Aumentar sua conversão:</strong> Garante que cada mensagem enviada use técnicas de persuasão e gatilhos mentais validados.</li>
       </ul>
 
-      <h2>Como o TextoPronto Funciona na Prática?</h2>
+      <h2 className="text-[28px]">Como o TextoPronto Funciona na Prática?</h2>
       <p>
         A maior vantagem do TextoPronto é a sua simplicidade. Você não precisa entender de tecnologia ou de persuasão para usá-lo. O processo é direto:
       </p>
       
-      <h3>Passo 1: Descreva o Contexto</h3>
+      <h3 className="text-2xl">Passo 1: Descreva o Contexto</h3>
       <p>Você acessa a plataforma e informa o que precisa. Em vez de pedir algo genérico, você dá o contexto exato da sua necessidade.</p>
       <blockquote className="border-l-4 border-primary pl-4 italic">
         <p><strong>Exemplo 1:</strong> "Preciso de um texto de abordagem fria para um cliente que veio do Instagram."</p>
@@ -61,7 +61,7 @@ export default function SamplePostPage() {
         <p><strong>Exemplo 3:</strong> "O cliente sumiu há 3 dias. Quero fazer um follow-up leve."</p>
       </blockquote>
       
-      <h3>Passo 2: A IA Gera as Opções</h3>
+      <h3 className="text-2xl">Passo 2: A IA Gera as Opções</h3>
       <p>Em menos de 5 segundos, a Inteligência Artificial do TextoPronto analisa seu pedido. Por ser uma IA treinada especificamente para vendas (e não uma IA genérica como o ChatGPT), ela entende as nuances de uma conversa no WhatsApp.</p>
       <p>Ela sabe que o texto precisa ser:</p>
        <ul className="list-disc pl-6">
@@ -70,11 +70,11 @@ export default function SamplePostPage() {
         <li>Persuasivo (com foco em levar o cliente ao próximo passo).</li>
       </ul>
 
-      <h3>Passo 3: Copie, Cole e Venda</h3>
+      <h3 className="text-2xl">Passo 3: Copie, Cole e Venda</h3>
       <p>A ferramenta entrega algumas variações da mensagem. Você escolhe a que mais se encaixa no seu tom de voz, copia o texto e cola diretamente na sua conversa do WhatsApp.</p>
       <p>O que antes levava 10 minutos de ansiedade, agora leva 10 segundos de eficiência.</p>
 
-       <h2>Para Quem o TextoPronto é Indicado?</h2>
+       <h2 className="text-[28px]">Para Quem o TextoPronto é Indicado?</h2>
        <p>O TextoPronto foi desenhado para qualquer pessoa que use o WhatsApp como ferramenta principal ou secundária de vendas. Se você precisa convencer alguém a comprar algo pelo aplicativo, a ferramenta serve para você.</p>
        <p>Isso inclui:</p>
         <ul className="list-disc pl-6">
@@ -85,7 +85,7 @@ export default function SamplePostPage() {
             <li><strong>Equipes de Vendas (Closer e SDR):</strong> Que precisam padronizar a comunicação e aumentar a produtividade do time.</li>
         </ul>
 
-      <h2>Erros Comuns que o TextoPronto Ajuda a Evitar</h2>
+      <h2 className="text-[28px]">Erros Comuns que o TextoPronto Ajuda a Evitar</h2>
       <p>Muitas vendas são perdidas não pelo produto ou pelo preço, mas por erros simples na comunicação. O TextoPronto atua como um "corretor" de abordagem, impedindo que você cometa essas falhas:</p>
         <ul className="list-disc pl-6">
             <li><strong>Soar Robótico:</strong> O maior erro de quem usa scripts prontos é soar como um telemarketing. A IA do TextoPronto foca em linguagem natural e fluida.</li>
@@ -94,7 +94,7 @@ export default function SamplePostPage() {
             <li><strong>Ser Passivo (Não ter CTA):</strong> Muitos vendedores terminam a mensagem com "Qualquer dúvida, estou à disposição". Isso não vende. O TextoPronto sempre sugere mensagens que terminam com uma pergunta ou um comando, guiando o cliente para a próxima ação.</li>
         </ul>
 
-      <h2>Estratégias Práticas: Quando Usar o TextoPronto?</h2>
+      <h2 className="text-[28px]">Estratégias Práticas: Quando Usar o TextoPronto?</h2>
       <p>O TextoPronto não serve apenas para o primeiro contato. Ele cobre todo o funil de vendas dentro da conversa:</p>
       <ul className="list-disc pl-6">
         <li><strong>Abordagem e Prospecção:</strong> Como iniciar a conversa com um lead frio ou alguém que veio de um anúncio.</li>
@@ -105,7 +105,7 @@ export default function SamplePostPage() {
         <li><strong>Pós-Venda:</strong> Mensagens para fidelizar o cliente, pedir depoimentos ou oferecer um upsell.</li>
       </ul>
 
-      <h2>Conclusão: O Fim do Bloqueio Criativo nas Vendas</h2>
+      <h2 className="text-[28px]">Conclusão: O Fim do Bloqueio Criativo nas Vendas</h2>
       <p>O TextoPronto é, em resumo, um acelerador de conversões.</p>
       <p>Ele elimina o maior gargalo de quem vende online: a dúvida do que escrever. Ele coloca nas suas mãos o poder da persuasão de resposta direta, sem que você precise estudar o assunto por anos.</p>
       <p>Se você sente que seu processo de vendas no WhatsApp é lento, se você perde clientes por demorar a responder ou por não saber quebrar objeções, esta ferramenta foi desenhada para você. Ela devolve seu tempo e coloca dinheiro no seu bolso ao transformar conversas travadas em vendas concluídas.</p>
