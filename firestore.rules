@@ -9,7 +9,7 @@
  *
  * Data Structure:
  * - /users/{userId}: Stores private profile data for each user.
- * - /users/{userId}/chat_messages/{messageId}: Stores private chat messages for each user.
+ * - /users/{userId}/messages/{messageId}: Stores private chat messages for each user.
  * - /sales_tags/{salesTagId}: Stores publicly available sales tags.
  */
 rules_version = '2';
@@ -45,21 +45,21 @@ service cloud.firestore {
 
     /**
      * @description Enforces owner-only access to chat messages for a given user.
-     * @path /users/{userId}/chat_messages/{messageId}
+     * @path /users/{userId}/messages/{messageId}
      * @allow (create) User 'user123' can create a new chat message under their own user ID.
      * @allow (get, update, delete, list) User 'user123' can access their own chat message.
      * @deny (create, get, update, delete, list) User 'user456' cannot access chat messages under 'user123'.
      * @principle Enforces document ownership for writes and restricts access to a user's data tree.
      */
-    match /users/{userId}/chat_messages/{messageId} {
+    match /users/{userId}/messages/{messageId} {
       function isExistingOwner(userId) {
         return isOwner(userId) && resource != null;
       }
 
-      allow create: if isOwner(userId) && request.resource.data.id == messageId;
+      allow create: if isOwner(userId);
       allow get: if isOwner(userId);
       allow list: if isOwner(userId);
-      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      allow update: if isExistingOwner(userId);
       allow delete: if isExistingOwner(userId);
     }
 
