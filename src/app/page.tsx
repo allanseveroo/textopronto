@@ -403,33 +403,7 @@ export default function Home() {
         <div className="w-full max-w-2xl mx-auto flex-1 flex flex-col">
           <Form {...form}>
             <div className="flex-grow space-y-4 md:space-y-6 pb-4">
-              <FormField
-                control={form.control}
-                name="salesTag"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-xs font-semibold text-zinc-500 uppercase">
-                      1. Escolha o tipo de mensagem
-                    </FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione o tipo de mensagem que você precisa" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {salesTags.map(tag => (
-                          <SelectItem key={tag.value} value={tag.value}>
-                            {tag.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
+              
               {generatedMessages.length === 0 && !isGenerating && (
                 <div className="text-center pt-8 md:pt-0">
                   {isLoading ? (
@@ -477,48 +451,70 @@ export default function Home() {
 
             <div className="sticky bottom-0 bg-white/80 backdrop-blur-sm py-4 md:py-6 mt-auto">
               <div className="space-y-4">
-                <form onSubmit={form.handleSubmit(onSubmit)} className="relative w-full">
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                   <FormField
-                    control={form.control}
-                    name="nicheDetails"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-xs font-semibold text-zinc-500 uppercase">
-                          2. Descreva seu produto ou negócio
-                        </FormLabel>
-                        <FormControl>
-                          <div className="relative">
-                            <TextareaAutosize
-                              placeholder="Ex: Vendo um curso de inglês online para iniciantes por R$997"
-                              className="w-full bg-zinc-100 border-zinc-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none text-sm sm:text-base placeholder:text-neutral-400 leading-tight p-4 pr-14"
-                              minRows={2}
-                              maxRows={5}
-                              {...field}
-                              onKeyDown={e => {
-                                if (e.key === 'Enter' && !e.shiftKey) {
-                                  e.preventDefault();
-                                  form.handleSubmit(onSubmit)();
-                                }
-                              }}
-                            />
-                            <Button
-                              type="submit"
-                              size="icon"
-                              className="absolute right-3 bottom-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg w-9 h-9"
-                              disabled={isGenerating || isLoading}
-                            >
-                              {isGenerating ? (
-                                <Loader2 className="h-5 w-5 animate-spin" />
-                              ) : (
-                                <ArrowUp className="h-5 w-5" />
-                              )}
-                              <span className="sr-only">Gerar</span>
-                            </Button>
-                          </div>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+                      control={form.control}
+                      name="nicheDetails"
+                      render={({ field }) => (
+                          <FormItem>
+                              <FormControl>
+                                  <div className="relative w-full">
+                                      <div className="absolute left-3 top-3 z-10">
+                                          <FormField
+                                              control={form.control}
+                                              name="salesTag"
+                                              render={({ field }) => (
+                                                  <FormItem>
+                                                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                          <FormControl>
+                                                              <SelectTrigger className="h-auto w-auto bg-zinc-200 border-zinc-300 rounded-lg text-xs p-1.5 md:p-2">
+                                                                  <SelectValue placeholder="Selecione..." />
+                                                              </SelectTrigger>
+                                                          </FormControl>
+                                                          <SelectContent>
+                                                              {salesTags.map(tag => (
+                                                                  <SelectItem key={tag.value} value={tag.value}>
+                                                                      {tag.label}
+                                                                  </SelectItem>
+                                                              ))}
+                                                          </SelectContent>
+                                                      </Select>
+                                                      <FormMessage />
+                                                  </FormItem>
+                                              )}
+                                          />
+                                      </div>
+                                      <TextareaAutosize
+                                          placeholder="Ex: Vendo um curso de inglês online para iniciantes por R$997"
+                                          className="w-full bg-zinc-100 border-zinc-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none text-sm sm:text-base placeholder:text-neutral-400 leading-tight p-4 pl-36 pr-14"
+                                          minRows={2}
+                                          maxRows={5}
+                                          {...field}
+                                          onKeyDown={e => {
+                                              if (e.key === 'Enter' && !e.shiftKey) {
+                                                  e.preventDefault();
+                                                  form.handleSubmit(onSubmit)();
+                                              }
+                                          }}
+                                      />
+                                      <Button
+                                          type="submit"
+                                          size="icon"
+                                          className="absolute right-3 bottom-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg w-9 h-9"
+                                          disabled={isGenerating || isLoading}
+                                      >
+                                          {isGenerating ? (
+                                              <Loader2 className="h-5 w-5 animate-spin" />
+                                          ) : (
+                                              <ArrowUp className="h-5 w-5" />
+                                          )}
+                                          <span className="sr-only">Gerar</span>
+                                      </Button>
+                                  </div>
+                              </FormControl>
+                              <FormMessage />
+                          </FormItem>
+                      )}
                   />
                 </form>
               </div>
