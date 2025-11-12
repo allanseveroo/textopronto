@@ -32,7 +32,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Loader2, ArrowUp, Check, Copy, LogIn, LogOut } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
 import {
   Card,
   CardContent,
@@ -83,14 +82,10 @@ const FREE_PLAN_LIMIT = 5;
 
 const GeneratedMessageCard = ({ message, salesTag, index }: { message: string; salesTag: string; index: number }) => {
   const [isCopied, setIsCopied] = useState(false);
-  const { toast } = useToast();
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(message);
     setIsCopied(true);
-    toast({
-      description: 'A mensagem foi copiada para a área de transferência.',
-    });
     setTimeout(() => setIsCopied(false), 3000);
   };
 
@@ -127,7 +122,6 @@ export default function Home() {
   const auth = useAuth();
   const firestore = useFirestore();
   const { user, isUserLoading: isAuthLoading } = useUser();
-  const { toast } = useToast();
 
   const fetchUserProfile = useCallback(async (uid: string) => {
     if (!firestore) return;
@@ -222,7 +216,7 @@ export default function Home() {
   
   const runGeneration = async (values: z.infer<typeof formSchema>) => {
     if (!user || !firestore) {
-      toast({ variant: 'destructive', title: 'Erro', description: 'Usuário não autenticado. Por favor, faça login novamente.' });
+      console.error('User not authenticated.');
       return;
     }
 
@@ -244,16 +238,12 @@ export default function Home() {
       }
 
       if (!latestProfile) {
-          toast({ variant: 'destructive', title: 'Erro', description: 'Perfil de usuário não encontrado. Tente novamente.' });
+          console.error('User profile not found.');
           return;
       }
 
       if (latestProfile.plan === 'free' && latestProfile.messageCount >= FREE_PLAN_LIMIT) {
-        toast({
-          variant: 'destructive',
-          title: 'Limite Atingido',
-          description: 'Você atingiu o limite de mensagens do plano gratuito.',
-        });
+        console.warn('Free plan limit reached.');
         return;
       }
 
@@ -310,7 +300,6 @@ export default function Home() {
         // Permission errors from Firestore are handled by the .catch() on the commit.
         if (!error.name.includes('FirebaseError')) {
           console.error('Failed to generate message:', error);
-          toast({ variant: 'destructive', title: 'Erro', description: error.message || 'Ocorreu um problema com a IA.' });
         }
       }
     });
@@ -343,7 +332,6 @@ export default function Home() {
     } catch (error: any) {
       if (error.code !== 'auth/popup-closed-by-user' && error.code !== 'auth/cancelled-popup-request') {
         console.error('Error signing in with Google', error);
-        toast({ variant: 'destructive', title: 'Erro de Login', description: 'Não foi possível entrar com o Google. Tente novamente.' });
       }
       setIsProfileLoading(false);
     }
@@ -403,7 +391,7 @@ export default function Home() {
           <div className="flex-grow space-y-4 md:space-y-6 pb-4">
               
               {(generatedMessages.length === 0 && !isGenerating) && (
-                <div className="text-center pt-8 md:pt-16">
+                <div className="text-center flex flex-col justify-center flex-1">
                   {isLoading ? (
                     <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
                   ) : (
