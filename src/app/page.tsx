@@ -177,6 +177,15 @@ export default function Home() {
     }
   }, [user, isAuthLoading, fetchUserProfile, fetchMessages]);
 
+  useEffect(() => {
+    // This effect runs when the user state changes.
+    // If we have a user and there's a pending form submission, run it now.
+    if (user && formValuesRef.current) {
+      runGeneration(formValuesRef.current);
+      formValuesRef.current = null; // Clear the pending submission
+    }
+  }, [user]); // Dependency on the user object
+
   const manageUserProfile = async (currentUser: import('firebase/auth').User): Promise<UserProfile | null> => {
     if (!firestore || !currentUser.email) return null;
   
@@ -323,12 +332,6 @@ export default function Home() {
       setIsProfileLoading(false);
       setIsLoginModalOpen(false);
 
-      // If there was a pending generation, run it now
-      if (formValuesRef.current) {
-        runGeneration(formValuesRef.current);
-        formValuesRef.current = null; // Clear the ref
-      }
-
     } catch (error: any) {
       if (error.code !== 'auth/popup-closed-by-user' && error.code !== 'auth/cancelled-popup-request') {
         console.error('Error signing in with Google', error);
@@ -438,8 +441,9 @@ export default function Home() {
             <Form {...form}>
               <form 
                 onSubmit={form.handleSubmit(onSubmit)} 
-                className="sticky bottom-0 bg-white/80 backdrop-blur-sm pt-2 pb-4 md:pt-4 md:pb-6 mt-auto space-y-3"
+                className="sticky bottom-0 bg-white/80 backdrop-blur-sm pt-2 pb-4 md:pt-4 md:pb-6 mt-auto"
               >
+                <div className='space-y-3'>
                   <div className="flex justify-start">
                     <FormField
                       control={form.control}
@@ -505,6 +509,7 @@ export default function Home() {
                           </FormItem>
                       )}
                   />
+                  </div>
                 </form>
             </Form>
         </div>
@@ -535,3 +540,4 @@ export default function Home() {
     
 
     
+
