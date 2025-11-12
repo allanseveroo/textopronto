@@ -137,12 +137,15 @@ export default function Home() {
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
         setUserProfile(docSnap.data() as UserProfile);
+        return docSnap.data() as UserProfile;
       } else {
-        setUserProfile(null); // No profile found
+        setUserProfile(null);
+        return null;
       }
     } catch (error) {
       console.error("Error fetching user profile:", error);
       toast({ variant: 'destructive', title: 'Erro ao buscar perfil.' });
+      return null;
     } finally {
       setIsProfileLoading(false);
     }
@@ -167,22 +170,23 @@ export default function Home() {
     if (user) {
       fetchUserProfile(user.uid);
       fetchMessages(user.uid);
-    } else {
-      // Reset states when user logs out
+    } else if (!isAuthLoading) {
+      // Reset states only when auth has loaded and there's no user
       setUserProfile(null);
       setGeneratedMessages([]);
       setIsProfileLoading(false);
     }
-  }, [user, fetchUserProfile, fetchMessages]);
+  }, [user, isAuthLoading, fetchUserProfile, fetchMessages]);
 
-  const manageUserProfile = async (currentUser: import('firebase/auth').User) => {
-    if (!firestore) return;
+  const manageUserProfile = async (currentUser: import('firebase/auth').User): Promise<UserProfile | null> => {
+    if (!firestore || !currentUser.email) return null;
   
     const docRef = doc(firestore, 'users', currentUser.uid);
     const docSnap = await getDoc(docRef);
   
-    if (!docSnap.exists()) {
-      if (!currentUser.email) return;
+    if (docSnap.exists()) {
+      return docSnap.data() as UserProfile;
+    } else {
       try {
         const newProfile: UserProfile = {
           userId: currentUser.uid,
@@ -191,25 +195,32 @@ export default function Home() {
           messageCount: 0,
         };
         await setDoc(docRef, newProfile);
-        setUserProfile(newProfile); // Set profile locally after creation
+        return newProfile;
       } catch (error) {
         console.error('Error creating user profile:', error);
         toast({ variant: 'destructive', title: 'Erro ao criar perfil de usuário.' });
+        return null;
       }
     }
   };
 
   const runGeneration = async (values: z.infer<typeof formSchema>) => {
     if (!user || !firestore) {
-      toast({ variant: 'destructive', title: 'Erro', description: 'Usuário não encontrado. Por favor, faça login novamente.' });
+      toast({ variant: 'destructive', title: 'Erro', description: 'Usuário não autenticado. Por favor, faça login novamente.' });
       return;
     }
 
     const userProfileRef = doc(firestore, 'users', user.uid);
     const latestProfileSnap = await getDoc(userProfileRef);
+
+    if (!latestProfileSnap.exists()) {
+        toast({ variant: 'destructive', title: 'Erro', description: 'Perfil de usuário não encontrado. Tente novamente.' });
+        return;
+    }
+
     const latestProfile = latestProfileSnap.data() as UserProfile;
 
-    if (latestProfile?.plan === 'free' && latestProfile.messageCount >= FREE_PLAN_LIMIT) {
+    if (latestProfile.plan === 'free' && latestProfile.messageCount >= FREE_PLAN_LIMIT) {
       toast({
         variant: 'destructive',
         title: 'Limite Atingido',
@@ -226,7 +237,7 @@ export default function Home() {
         });
         
         const messagesRef = collection(firestore, 'users', user.uid, 'messages');
-        const newMessageDoc = doc(messagesRef); // Create a new doc with a random ID
+        const newMessageDoc = doc(messagesRef);
 
         const newMessage: Omit<GeneratedMessage, 'id'> = {
           message: result.message,
@@ -236,12 +247,14 @@ export default function Home() {
 
         await setDoc(newMessageDoc, newMessage);
         
+        // Use a client-side timestamp for immediate UI update
         const finalMessage = { ...newMessage, id: newMessageDoc.id, createdAt: new Timestamp(Date.now() / 1000, 0) };
 
         setGeneratedMessages(prev => [finalMessage, ...prev]);
 
         await updateDoc(userProfileRef, { messageCount: increment(1) });
 
+        // Optimistically update local profile state
         setUserProfile(prev => prev ? { ...prev, messageCount: prev.messageCount + 1 } : null);
 
         form.reset({ salesTag: values.salesTag, nicheDetails: '' });
@@ -259,9 +272,21 @@ export default function Home() {
     try {
       const result = await signInWithPopup(auth, provider);
       const currentUser = result.user;
-      await manageUserProfile(currentUser);
+      
+      setIsProfileLoading(true);
+      const profile = await manageUserProfile(currentUser);
+      
+      // Update UI immediately
+      setUserProfile(profile);
+      await fetchMessages(currentUser.uid);
+      setIsProfileLoading(false);
+
       setIsLoginModalOpen(false);
+
       if (formValuesRef.current) {
+        // Need to wait for the `user` state from useUser to propagate before running generation
+        // A small delay or a more complex state management might be needed if issues persist.
+        // For now, let's proceed, as the main `user` state update should be quick.
         runGeneration(formValuesRef.current);
         formValuesRef.current = null;
       }
@@ -270,6 +295,7 @@ export default function Home() {
         console.error('Error signing in with Google', error);
         toast({ variant: 'destructive', title: 'Erro de Login', description: 'Não foi possível entrar com o Google. Tente novamente.' });
       }
+      setIsProfileLoading(false);
     }
   };
 
