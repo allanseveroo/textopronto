@@ -378,6 +378,8 @@ export default function Home() {
     },
   };
 
+  const selectedTag = form.watch('salesTag');
+
   return (
     <div className="flex flex-col min-h-screen font-sans bg-white">
        <script
@@ -400,9 +402,9 @@ export default function Home() {
       </header>
       <main className="flex-1 flex flex-col items-center px-4 pt-4 md:pt-8">
         <div className="w-full max-w-2xl mx-auto flex-1 flex flex-col">
-          <div className="flex-grow space-y-6">
+          <div className="flex-grow space-y-4 md:space-y-6 pb-4">
             {generatedMessages.length === 0 && !isGenerating && (
-              <div className="text-center">
+              <div className="text-center pt-8 md:pt-0">
                  {isLoading ? (
                     <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
                  ) : (
@@ -449,7 +451,12 @@ export default function Home() {
                   <FormField control={form.control} name="salesTag" render={({ field }) => (
                       <FormItem className="flex-shrink-0">
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl><SelectTrigger className="bg-neutral-100 border-none shadow-sm pr-8 text-neutral-600 w-auto text-xs sm:text-sm"><SelectValue /></SelectTrigger></FormControl>
+                          <FormControl>
+                            <SelectTrigger className="bg-neutral-100 border-none shadow-sm text-neutral-600 w-auto text-xs sm:text-sm sm:w-auto sm:pr-8">
+                                <span className='sm:hidden'>{salesTags.find(t => t.value === selectedTag)?.label.split(' ')[0]}</span>
+                                <span className='hidden sm:inline'><SelectValue /></span>
+                            </SelectTrigger>
+                          </FormControl>
                           <SelectContent>{salesTags.map(tag => <SelectItem key={tag.value} value={tag.value}>{tag.label}</SelectItem>)}</SelectContent>
                         </Select>
                       </FormItem>
