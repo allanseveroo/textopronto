@@ -1,7 +1,6 @@
-
 'use client';
 
-import { useState, useTransition, useEffect, useRef } from 'react';
+import { useState, useTransition, useEffect, useRef, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -40,12 +39,9 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { useAuth, useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { useAuth, useUser, useFirestore } from '@/firebase'; 
 import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, increment } from 'firebase/firestore';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
-
+import { doc, getDoc, setDoc, updateDoc, increment, collection, getDocs, query, orderBy, serverTimestamp, Timestamp } from 'firebase/firestore';
 
 const formSchema = z.object({
   salesTag: z.string().default('Saudação'),
@@ -53,10 +49,18 @@ const formSchema = z.object({
 });
 
 type GeneratedMessage = {
-  id: number;
+  id: string;
   message: string;
   salesTag: string;
+  createdAt: Timestamp;
 };
+
+type UserProfile = {
+    userId: string;
+    email: string;
+    plan: 'free' | 'pro';
+    messageCount: number;
+}
 
 const salesTags = [
   { value: 'Saudação', label: '👋 Saudação' },
@@ -115,19 +119,61 @@ export default function Home() {
   const [isGenerating, startTransition] = useTransition();
   const [generatedMessages, setGeneratedMessages] = useState<GeneratedMessage[]>([]);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [isProfileLoading, setIsProfileLoading] = useState(true);
+  
   const formValuesRef = useRef<z.infer<typeof formSchema> | null>(null);
   
   const auth = useAuth();
   const firestore = useFirestore();
-  const { user, isUserLoading } = useUser();
+  const { user, isUserLoading: isAuthLoading } = useUser();
   const { toast } = useToast();
 
-  const userProfileRef = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return doc(firestore, 'users', user.uid);
-  }, [firestore, user]);
+  const fetchUserProfile = useCallback(async (uid: string) => {
+    if (!firestore) return;
+    setIsProfileLoading(true);
+    try {
+      const docRef = doc(firestore, 'users', uid);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        setUserProfile(docSnap.data() as UserProfile);
+      } else {
+        setUserProfile(null); // No profile found
+      }
+    } catch (error) {
+      console.error("Error fetching user profile:", error);
+      toast({ variant: 'destructive', title: 'Erro ao buscar perfil.' });
+    } finally {
+      setIsProfileLoading(false);
+    }
+  }, [firestore, toast]);
 
-  const { data: userProfile, isLoading: isProfileLoading } = useDoc(userProfileRef);
+  const fetchMessages = useCallback(async (uid: string) => {
+      if (!firestore) return;
+      try {
+          const messagesRef = collection(firestore, 'users', uid, 'messages');
+          const q = query(messagesRef, orderBy('createdAt', 'desc'));
+          const querySnapshot = await getDocs(q);
+          const messages = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GeneratedMessage));
+          setGeneratedMessages(messages);
+      } catch (error) {
+          console.error("Error fetching messages:", error);
+          toast({ variant: 'destructive', title: 'Erro ao buscar mensagens.' });
+      }
+  }, [firestore, toast]);
+
+
+  useEffect(() => {
+    if (user) {
+      fetchUserProfile(user.uid);
+      fetchMessages(user.uid);
+    } else {
+      // Reset states when user logs out
+      setUserProfile(null);
+      setGeneratedMessages([]);
+      setIsProfileLoading(false);
+    }
+  }, [user, fetchUserProfile, fetchMessages]);
 
   const manageUserProfile = async (currentUser: import('firebase/auth').User) => {
     if (!firestore) return;
@@ -138,43 +184,30 @@ export default function Home() {
     if (!docSnap.exists()) {
       if (!currentUser.email) return;
       try {
-        await setDoc(docRef, {
+        const newProfile: UserProfile = {
           userId: currentUser.uid,
           email: currentUser.email,
           plan: 'free',
           messageCount: 0,
-        });
+        };
+        await setDoc(docRef, newProfile);
+        setUserProfile(newProfile); // Set profile locally after creation
       } catch (error) {
-        const contextualError = new FirestorePermissionError({
-          operation: 'create',
-          path: docRef.path,
-          requestResourceData: {
-            userId: currentUser.uid,
-            email: currentUser.email,
-            plan: 'free',
-            messageCount: 0,
-          }
-        });
-        errorEmitter.emit('permission-error', contextualError);
+        console.error('Error creating user profile:', error);
+        toast({ variant: 'destructive', title: 'Erro ao criar perfil de usuário.' });
       }
     }
   };
 
-  useEffect(() => {
-    if (user && !userProfile && !isProfileLoading) {
-        manageUserProfile(user);
-    }
-  }, [user, firestore, userProfile, isProfileLoading]);
-
   const runGeneration = async (values: z.infer<typeof formSchema>) => {
-    if (!user || !userProfileRef) {
+    if (!user || !firestore) {
       toast({ variant: 'destructive', title: 'Erro', description: 'Usuário não encontrado. Por favor, faça login novamente.' });
       return;
     }
 
-    // Refetch latest profile data before checking limit
+    const userProfileRef = doc(firestore, 'users', user.uid);
     const latestProfileSnap = await getDoc(userProfileRef);
-    const latestProfile = latestProfileSnap.data();
+    const latestProfile = latestProfileSnap.data() as UserProfile;
 
     if (latestProfile?.plan === 'free' && latestProfile.messageCount >= FREE_PLAN_LIMIT) {
       toast({
@@ -191,89 +224,70 @@ export default function Home() {
           salesTag: values.salesTag,
           nicheDetails: values.nicheDetails,
         });
+        
+        const messagesRef = collection(firestore, 'users', user.uid, 'messages');
+        const newMessageDoc = doc(messagesRef); // Create a new doc with a random ID
 
-        const newMessage: GeneratedMessage = {
-          id: Date.now(),
+        const newMessage: Omit<GeneratedMessage, 'id'> = {
           message: result.message,
           salesTag: values.salesTag,
+          createdAt: serverTimestamp() as Timestamp,
         };
 
-        setGeneratedMessages(prev => [newMessage, ...prev]);
+        await setDoc(newMessageDoc, newMessage);
+        
+        const finalMessage = { ...newMessage, id: newMessageDoc.id, createdAt: new Timestamp(Date.now() / 1000, 0) };
 
-        // Incrementa a contagem de mensagens
-        await updateDoc(userProfileRef, {
-          messageCount: increment(1)
-        }).catch(error => {
-          const contextualError = new FirestorePermissionError({
-            operation: 'update',
-            path: userProfileRef.path,
-            requestResourceData: { messageCount: 'increment(1)' }
-          });
-          errorEmitter.emit('permission-error', contextualError);
-        });
+        setGeneratedMessages(prev => [finalMessage, ...prev]);
 
-        form.reset({
-          salesTag: values.salesTag,
-          nicheDetails: '',
-        });
+        await updateDoc(userProfileRef, { messageCount: increment(1) });
+
+        setUserProfile(prev => prev ? { ...prev, messageCount: prev.messageCount + 1 } : null);
+
+        form.reset({ salesTag: values.salesTag, nicheDetails: '' });
 
       } catch (error: any) {
         console.error('Failed to generate message:', error);
-        toast({
-          variant: 'destructive',
-          title: 'Erro',
-          description: error.message || 'Ocorreu um problema com a IA. Por favor, tente novamente.',
-        });
+        toast({ variant: 'destructive', title: 'Erro', description: error.message || 'Ocorreu um problema com a IA.' });
       }
     });
   };
 
   const handleSignIn = async () => {
+    if (!auth) return;
     const provider = new GoogleAuthProvider();
     try {
       const result = await signInWithPopup(auth, provider);
       const currentUser = result.user;
-  
       await manageUserProfile(currentUser);
       setIsLoginModalOpen(false);
-  
       if (formValuesRef.current) {
         runGeneration(formValuesRef.current);
         formValuesRef.current = null;
       }
     } catch (error: any) {
-      // If the user closes the popup or cancels the request, do nothing.
-      if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
-        return;
+      if (error.code !== 'auth/popup-closed-by-user' && error.code !== 'auth/cancelled-popup-request') {
+        console.error('Error signing in with Google', error);
+        toast({ variant: 'destructive', title: 'Erro de Login', description: 'Não foi possível entrar com o Google. Tente novamente.' });
       }
-  
-      // For any other error, show a toast notification.
-      console.error('Error signing in with Google', error);
-      toast({
-        variant: 'destructive',
-        title: 'Erro de Login',
-        description: 'Não foi possível entrar com o Google. Tente novamente.',
-      });
     }
   };
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      salesTag: 'Saudação',
-      nicheDetails: '',
-    },
+    defaultValues: { salesTag: 'Saudação', nicheDetails: '' },
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if (!user) {
-      formValuesRef.current = values; // Save form values
+      formValuesRef.current = values;
       setIsLoginModalOpen(true);
       return;
     }
     runGeneration(values);
   }
 
+  const isLoading = isAuthLoading || isProfileLoading;
 
   return (
     <div className="flex flex-col min-h-screen font-sans bg-white">
@@ -283,7 +297,7 @@ export default function Home() {
            {user && (
             <div className="flex items-center gap-4">
               <span className="text-sm text-foreground/80 hidden sm:inline">Olá, {user.displayName || user.email}</span>
-              <Button variant="outline" size="sm" onClick={() => signOut(auth)}>
+              <Button variant="outline" size="sm" onClick={() => auth && signOut(auth)}>
                 <LogOut className="h-4 w-4 sm:mr-2" />
                 <span className="hidden sm:inline">Sair</span>
               </Button>
@@ -296,37 +310,33 @@ export default function Home() {
           <div className="flex-grow space-y-6">
             {generatedMessages.length === 0 && !isGenerating && (
               <div className="text-center">
-                  <h2 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
-                    Crie textos prontos de vendas para WhatsApp personalizados para seu negócio.
-                  </h2>
-                  {user && userProfile && userProfile.plan === 'free' && (
-                    <p className="mt-4 text-muted-foreground">
-                      Você usou {userProfile.messageCount} de {FREE_PLAN_LIMIT} mensagens do seu plano gratuito.
-                    </p>
-                  )}
+                 {isLoading ? (
+                    <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
+                 ) : (
+                  <>
+                    <h2 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
+                      Crie textos prontos de vendas para WhatsApp personalizados para seu negócio.
+                    </h2>
+                    {user && userProfile && userProfile.plan === 'free' && (
+                      <p className="mt-4 text-muted-foreground">
+                        Você usou {userProfile.messageCount} de {FREE_PLAN_LIMIT} mensagens do seu plano gratuito.
+                      </p>
+                    )}
+                  </>
+                 )}
               </div>
             )}
             
             {isGenerating && (
               <Card className="text-left max-w-2xl mx-auto bg-card shadow-lg">
-                <CardHeader>
-                  <CardTitle className="font-bold text-lg">
-                    Gerando sua mensagem...
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3 pt-2">
-                    <div className="bg-muted animate-pulse h-4 w-full rounded-md" />
-                    <div className="bg-muted animate-pulse h-4 w-5/6 rounded-md" />
-                    <div className="bg-muted animate-pulse h-4 w-full rounded-md" />
-                    <div className="bg-muted animate-pulse h-4 w-3/4 rounded-md" />
-                  </div>
-                </CardContent>
+                <CardHeader><CardTitle className="font-bold text-lg">Gerando sua mensagem...</CardTitle></CardHeader>
+                <CardContent><div className="space-y-3 pt-2">
+                  <div className="bg-muted animate-pulse h-4 w-full rounded-md" /><div className="bg-muted animate-pulse h-4 w-5/6 rounded-md" /><div className="bg-muted animate-pulse h-4 w-full rounded-md" /><div className="bg-muted animate-pulse h-4 w-3/4 rounded-md" />
+                </div></CardContent>
               </Card>
             )}
 
-            {generatedMessages.length > 0 &&
-              generatedMessages.map((msg, i) => (
+            {generatedMessages.map((msg, i) => (
                 <GeneratedMessageCard
                   key={msg.id}
                   message={msg.message}
@@ -343,67 +353,30 @@ export default function Home() {
                 className="relative w-full max-w-2xl mx-auto bg-white p-2 shadow-[0_4px_16px_rgba(0,0,0,0.05)] border rounded-xl overflow-hidden"
               >
                 <div className="flex items-center">
-                  <FormField
-                    control={form.control}
-                    name="salesTag"
-                    render={({ field }) => (
+                  <FormField control={form.control} name="salesTag" render={({ field }) => (
                       <FormItem className="flex-shrink-0">
-                        <Select
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger className="bg-neutral-100 border-none shadow-sm pr-8 text-neutral-600">
-                              <SelectValue />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {salesTags.map(tag => (
-                              <SelectItem key={tag.value} value={tag.value}>
-                                {tag.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl><SelectTrigger className="bg-neutral-100 border-none shadow-sm pr-8 text-neutral-600"><SelectValue /></SelectTrigger></FormControl>
+                          <SelectContent>{salesTags.map(tag => <SelectItem key={tag.value} value={tag.value}>{tag.label}</SelectItem>)}</SelectContent>
                         </Select>
                       </FormItem>
-                    )}
-                  />
+                    )}/>
 
-                  <FormField
-                    control={form.control}
-                    name="nicheDetails"
-                    render={({ field }) => (
+                  <FormField control={form.control} name="nicheDetails" render={({ field }) => (
                       <FormItem className="flex-grow ml-2">
                         <FormControl>
                           <TextareaAutosize
                             placeholder="Escreva sobre seu negócio aqui"
                             className="w-full bg-transparent border-none focus:outline-none focus:ring-0 resize-none text-base placeholder:text-neutral-400 leading-tight py-2"
-                            minRows={1}
-                            maxRows={5}
-                            {...field}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' && !e.shiftKey) {
-                                e.preventDefault();
-                                form.handleSubmit(onSubmit)();
-                              }
-                            }}
+                            minRows={1} maxRows={5} {...field}
+                            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.handleSubmit(onSubmit)(); }}}
                           />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
-                    )}
-                  />
-                  <Button
-                    type="submit"
-                    size="icon"
-                    className="ml-2 bg-emerald-500 hover:bg-emerald-600 text-white flex-shrink-0 rounded-lg"
-                    disabled={isGenerating || isProfileLoading || isUserLoading}
-                  >
-                    {isGenerating ? (
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                    ) : (
-                      <ArrowUp className="h-5 w-5" />
-                    )}
+                    )}/>
+                  <Button type="submit" size="icon" className="ml-2 bg-emerald-500 hover:bg-emerald-600 text-white flex-shrink-0 rounded-lg" disabled={isGenerating || isLoading}>
+                    {isGenerating ? <Loader2 className="h-5 w-5 animate-spin" /> : <ArrowUp className="h-5 w-5" />}
                     <span className="sr-only">Gerar</span>
                   </Button>
                 </div>
@@ -417,9 +390,7 @@ export default function Home() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold">Faça login para continuar</DialogTitle>
-            <DialogDescription>
-              Para gerar sua mensagem personalizada, você precisa entrar com sua conta Google.
-            </DialogDescription>
+            <DialogDescription>Para gerar sua mensagem personalizada, você precisa entrar com sua conta Google.</DialogDescription>
           </DialogHeader>
           <div className="flex items-center justify-center pt-4">
             <Button onClick={handleSignIn} className="w-full">
