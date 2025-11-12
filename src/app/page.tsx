@@ -130,72 +130,6 @@ export default function Home() {
     defaultValues: { salesTag: 'Saudação', nicheDetails: '' },
   });
 
-  useEffect(() => {
-    const isFirstVisit = !localStorage.getItem('hasVisitedTextoPronto');
-    if (isFirstVisit) {
-      setIsTooltipOpen(true);
-      const timer = setTimeout(() => {
-        setIsTooltipOpen(false);
-        localStorage.setItem('hasVisitedTextoPronto', 'true');
-      }, 15000);
-      return () => clearTimeout(timer);
-    }
-  }, []);
-
-  const fetchUserProfile = useCallback(async (uid: string) => {
-    if (!firestore) return;
-    setIsProfileLoading(true);
-    const docRef = doc(firestore, 'users', uid);
-    try {
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        const profile = docSnap.data() as UserProfile;
-        setUserProfile(profile);
-        return profile;
-      } else {
-        setUserProfile(null);
-        return null;
-      }
-    } catch (error) {
-       errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: docRef.path,
-        operation: 'get'
-      }));
-      return null;
-    } finally {
-      setIsProfileLoading(false);
-    }
-  }, [firestore]);
-
-  const fetchMessages = useCallback(async (uid: string) => {
-      if (!firestore) return;
-      const messagesRef = collection(firestore, 'users', uid, 'messages');
-      try {
-          const q = query(messagesRef, orderBy('createdAt', 'desc'));
-          const querySnapshot = await getDocs(q);
-          const messages = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GeneratedMessage));
-          setGeneratedMessages(messages);
-      } catch (error) {
-          errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: messagesRef.path,
-            operation: 'list'
-          }));
-      }
-  }, [firestore]);
-
-
-  useEffect(() => {
-    if (user) {
-      fetchUserProfile(user.uid);
-      fetchMessages(user.uid);
-    } else if (!isAuthLoading) {
-      // Reset states only when auth has loaded and there's no user
-      setUserProfile(null);
-      setGeneratedMessages([]);
-      setIsProfileLoading(false);
-    }
-  }, [user, isAuthLoading, fetchUserProfile, fetchMessages]);
-
   const runGeneration = useCallback(async (values: z.infer<typeof formSchema>) => {
     if (!user || !firestore) {
       // This case is handled by prompting login, but as a safeguard:
@@ -284,6 +218,74 @@ export default function Home() {
       }
     });
   }, [user, firestore, form]);
+
+  useEffect(() => {
+    const isFirstVisit = !localStorage.getItem('hasVisitedTextoPronto');
+    if (isFirstVisit) {
+      setIsTooltipOpen(true);
+      const timer = setTimeout(() => {
+        setIsTooltipOpen(false);
+        localStorage.setItem('hasVisitedTextoPronto', 'true');
+      }, 15000);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
+  const fetchUserProfile = useCallback(async (uid: string) => {
+    if (!firestore) return;
+    setIsProfileLoading(true);
+    const docRef = doc(firestore, 'users', uid);
+    try {
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        const profile = docSnap.data() as UserProfile;
+        setUserProfile(profile);
+        return profile;
+      } else {
+        setUserProfile(null);
+        return null;
+      }
+    } catch (error) {
+       errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: docRef.path,
+        operation: 'get'
+      }));
+      return null;
+    } finally {
+      setIsProfileLoading(false);
+    }
+  }, [firestore]);
+
+  const fetchMessages = useCallback(async (uid: string) => {
+      if (!firestore) return;
+      const messagesRef = collection(firestore, 'users', uid, 'messages');
+      try {
+          const q = query(messagesRef, orderBy('createdAt', 'desc'));
+          const querySnapshot = await getDocs(q);
+          const messages = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GeneratedMessage));
+          setGeneratedMessages(messages);
+      } catch (error) {
+          errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: messagesRef.path,
+            operation: 'list'
+          }));
+      }
+  }, [firestore]);
+
+
+  useEffect(() => {
+    if (user) {
+      fetchUserProfile(user.uid);
+      fetchMessages(user.uid);
+    } else if (!isAuthLoading) {
+      // Reset states only when auth has loaded and there's no user
+      setUserProfile(null);
+      setGeneratedMessages([]);
+      setIsProfileLoading(false);
+    }
+  }, [user, isAuthLoading, fetchUserProfile, fetchMessages]);
+
+
 
 
   useEffect(() => {
@@ -454,7 +456,7 @@ export default function Home() {
                 onSubmit={form.handleSubmit(onSubmit)} 
                 className="sticky bottom-0 bg-white/80 backdrop-blur-sm pt-2 pb-4 md:pt-4 md:pb-6 mt-auto"
               >
-                  <div className="mb-2 flex">
+                  <div className="mb-2">
                     <TooltipProvider>
                       <Tooltip open={isTooltipOpen} onOpenChange={setIsTooltipOpen}>
                         <TooltipTrigger asChild>
@@ -556,6 +558,4 @@ export default function Home() {
       </footer>
     </div>
   );
-
-    
-
+}
