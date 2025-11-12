@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  web:
+    # Constrói a imagem a partir do Dockerfile no diretório atual
+    build: .
+    
+    # Mapeia a porta 3000 do container para a porta 3000 da sua máquina
+    ports:
+      - "3000:3000"
+      
+    # Carrega as variáveis de ambiente de um arquivo .env na raiz do projeto
+    # Isso é ideal para desenvolvimento local. Para produção (como no Easypanel),
+    # você definirá essas variáveis na interface da plataforma.
+    env_file:
+      - .env
+
+    # Define o nome do container para fácil identificação
+    container_name: textopronto-app
