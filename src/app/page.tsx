@@ -31,6 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Loader2, ArrowUp, Check, Copy, LogIn, LogOut } from 'lucide-react';
 import {
   Card,
@@ -116,12 +117,30 @@ export default function Home() {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isProfileLoading, setIsProfileLoading] = useState(true);
+  const [isTooltipOpen, setIsTooltipOpen] = useState(false);
   
   const formValuesRef = useRef<z.infer<typeof formSchema> | null>(null);
   
   const auth = useAuth();
   const firestore = useFirestore();
   const { user, isUserLoading: isAuthLoading } = useUser();
+
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: { salesTag: 'Saudação', nicheDetails: '' },
+  });
+
+  useEffect(() => {
+    const isFirstVisit = !localStorage.getItem('hasVisitedTextoPronto');
+    if (isFirstVisit) {
+      setIsTooltipOpen(true);
+      const timer = setTimeout(() => {
+        setIsTooltipOpen(false);
+        localStorage.setItem('hasVisitedTextoPronto', 'true');
+      }, 15000);
+      return () => clearTimeout(timer);
+    }
+  }, []);
 
   const fetchUserProfile = useCallback(async (uid: string) => {
     if (!firestore) return;
@@ -177,55 +196,10 @@ export default function Home() {
     }
   }, [user, isAuthLoading, fetchUserProfile, fetchMessages]);
 
-  useEffect(() => {
-    // This effect runs when the user state changes.
-    // If we have a user and there's a pending form submission, run it now.
-    if (user && formValuesRef.current) {
-      runGeneration(formValuesRef.current);
-      formValuesRef.current = null; // Clear the pending submission
-    }
-  }, [user]); // Dependency on the user object
-
-  const manageUserProfile = async (currentUser: import('firebase/auth').User): Promise<UserProfile | null> => {
-    if (!firestore || !currentUser.email) return null;
-  
-    const docRef = doc(firestore, 'users', currentUser.uid);
-    
-    try {
-      const docSnap = await getDoc(docRef);
-    
-      if (docSnap.exists()) {
-        return docSnap.data() as UserProfile;
-      } else {
-        const newProfile: UserProfile = {
-          userId: currentUser.uid,
-          email: currentUser.email,
-          plan: 'free',
-          messageCount: 0,
-        };
-        // Use a .catch block for permission errors during creation
-        await setDoc(docRef, newProfile).catch(() => {
-          errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: docRef.path,
-            operation: 'create',
-            requestResourceData: newProfile
-          }));
-        });
-        return newProfile;
-      }
-    } catch (error) {
-      // This will catch read errors (getDoc)
-      errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: docRef.path,
-        operation: 'get'
-      }));
-      return null;
-    }
-  };
-  
-  const runGeneration = async (values: z.infer<typeof formSchema>) => {
+  const runGeneration = useCallback(async (values: z.infer<typeof formSchema>) => {
     if (!user || !firestore) {
-      console.error('User not authenticated.');
+      // This case is handled by prompting login, but as a safeguard:
+      console.error('User not authenticated or Firestore not available.');
       return;
     }
 
@@ -252,6 +226,7 @@ export default function Home() {
       }
 
       if (latestProfile.plan === 'free' && latestProfile.messageCount >= FREE_PLAN_LIMIT) {
+        // Silently fail as per user request to remove alerts
         console.warn('Free plan limit reached.');
         return;
       }
@@ -277,7 +252,6 @@ export default function Home() {
         batch.update(userProfileRef, { messageCount: increment(1) });
         
         await batch.commit().catch(error => {
-            // Emitting a contextual error for the batch write
             errorEmitter.emit(
               'permission-error',
               new FirestorePermissionError({
@@ -299,21 +273,63 @@ export default function Home() {
         
         setGeneratedMessages(prev => [finalMessage, ...prev]);
 
-        // Optimistically update local profile state
         setUserProfile(prev => prev ? { ...prev, messageCount: prev.messageCount + 1 } : null);
 
         form.reset({ salesTag: values.salesTag, nicheDetails: '' });
 
       } catch (error: any) {
-        // This will catch errors from generateWhatsAppMessage or other unexpected issues.
-        // Permission errors from Firestore are handled by the .catch() on the commit.
         if (!error.name.includes('FirebaseError')) {
           console.error('Failed to generate message:', error);
         }
       }
     });
-  };
+  }, [user, firestore, form]);
 
+
+  useEffect(() => {
+    // This effect runs when the user state changes.
+    // If we have a user and there's a pending form submission, run it now.
+    if (user && formValuesRef.current) {
+      runGeneration(formValuesRef.current);
+      formValuesRef.current = null; // Clear the pending submission
+    }
+  }, [user, runGeneration]); // Dependency on the user object and the memoized runGeneration
+
+  const manageUserProfile = async (currentUser: import('firebase/auth').User): Promise<UserProfile | null> => {
+    if (!firestore || !currentUser.email) return null;
+  
+    const docRef = doc(firestore, 'users', currentUser.uid);
+    
+    try {
+      const docSnap = await getDoc(docRef);
+    
+      if (docSnap.exists()) {
+        return docSnap.data() as UserProfile;
+      } else {
+        const newProfile: UserProfile = {
+          userId: currentUser.uid,
+          email: currentUser.email,
+          plan: 'free',
+          messageCount: 0,
+        };
+        await setDoc(docRef, newProfile).catch(() => {
+          errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: docRef.path,
+            operation: 'create',
+            requestResourceData: newProfile
+          }));
+        });
+        return newProfile;
+      }
+    } catch (error) {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: docRef.path,
+        operation: 'get'
+      }));
+      return null;
+    }
+  };
+  
   const handleSignIn = async () => {
     if (!auth || !firestore) return;
     const provider = new GoogleAuthProvider();
@@ -326,7 +342,7 @@ export default function Home() {
       
       if (profile) {
         setUserProfile(profile);
-        await fetchMessages(currentUser.uid); // Fetch messages after successful profile management
+        await fetchMessages(currentUser.uid);
       }
       
       setIsProfileLoading(false);
@@ -339,11 +355,6 @@ export default function Home() {
       setIsProfileLoading(false);
     }
   };
-
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: { salesTag: 'Saudação', nicheDetails: '' },
-  });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if (!user) {
@@ -443,31 +454,41 @@ export default function Home() {
                 onSubmit={form.handleSubmit(onSubmit)} 
                 className="sticky bottom-0 bg-white/80 backdrop-blur-sm pt-2 pb-4 md:pt-4 md:pb-6 mt-auto"
               >
-                <div className='space-y-3'>
-                  <div className="flex justify-start">
-                    <FormField
-                      control={form.control}
-                      name="salesTag"
-                      render={({ field }) => (
-                        <FormItem>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl>
-                              <SelectTrigger className="w-auto h-auto px-3 py-1 text-xs rounded-full border-zinc-200 bg-zinc-100/80">
-                                <SelectValue placeholder="Selecione..." />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {salesTags.map(tag => (
-                                <SelectItem key={tag.value} value={tag.value}>
-                                  {tag.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                  <div className="mb-2 flex">
+                    <TooltipProvider>
+                      <Tooltip open={isTooltipOpen} onOpenChange={setIsTooltipOpen}>
+                        <TooltipTrigger asChild>
+                          <div className='inline-block'>
+                            <FormField
+                              control={form.control}
+                              name="salesTag"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl>
+                                      <SelectTrigger className="w-auto h-auto px-3 py-1 text-xs rounded-full border-zinc-200 bg-zinc-100/80">
+                                        <SelectValue placeholder="Selecione..." />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      {salesTags.map(tag => (
+                                        <SelectItem key={tag.value} value={tag.value}>
+                                          {tag.label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent className='bg-black text-white' side="top" align="start">
+                          <p>Escolha um tipo de texto pronto</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </div>
                   
                   <FormField
@@ -509,7 +530,6 @@ export default function Home() {
                           </FormItem>
                       )}
                   />
-                  </div>
                 </form>
             </Form>
         </div>
@@ -538,6 +558,3 @@ export default function Home() {
   );
 
     
-
-    
-
