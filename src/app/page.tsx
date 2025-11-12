@@ -422,9 +422,8 @@ export default function Home() {
                   )}
                 </div>
               )}
-
-              <div className="space-y-2 pb-4">
-                <FormField
+               <div className="w-full pb-4">
+                 <FormField
                   control={form.control}
                   name="salesTag"
                   render={({ field }) => (
@@ -432,7 +431,7 @@ export default function Home() {
                       <FormLabel className="text-sm font-medium text-foreground/80">Selecione um tipo de mensagem:</FormLabel>
                       <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl>
-                          <SelectTrigger>
+                          <SelectTrigger className="w-full sm:w-auto">
                             <SelectValue placeholder="Selecione..." />
                           </SelectTrigger>
                         </FormControl>
@@ -448,7 +447,8 @@ export default function Home() {
                     </FormItem>
                   )}
                 />
-              </div>
+               </div>
+
 
               {isGenerating && (
                 <Card className="text-left max-w-2xl mx-auto bg-card shadow-lg">
